@@ -8,12 +8,12 @@ actor "Driving Device" as Drive
 Sensor -> System: reportObstacleState(front=true, left=true, right=true)
 activate System
 System -> Drive: stop()
-System -> Drive: moveBackward()
 
-alt side becomes available
+alt backward available
+    System -> Drive: moveBackward()
     Sensor -> System: reportObstacleState(left=false or right=false)
     note right of System: Continue with UC-003
-else still blocked after backing up
+else backward unavailable and both sides blocked
     System -> Drive: stop()
 end
 deactivate System

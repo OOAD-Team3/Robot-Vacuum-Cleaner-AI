@@ -1,5 +1,5 @@
-@startuml SSD_DUC002_Stop_On_Front_Obstacle
-title SSD - DUC-002 Stop After Front Obstacle Detection
+@startuml SSD_UC002_Stop_On_Front_Obstacle
+title SSD - UC-002 Stop After Front Obstacle Detection
 
 actor "Sensor Input" as Sensor
 participant "RVC SW Controller" as System
@@ -11,7 +11,7 @@ System -> Drive: stop()
 
 alt front, left, and right obstacles detected
     Sensor -> System: reportObstacleState(front=true, left=true, right=true)
-    note right of System: Continue with DUC-005
+    note right of System: Continue with UC-005
 else dust detected while stopped
     Sensor -> System: reportDustDetected()
     note right of System: Obstacle avoidance remains priority

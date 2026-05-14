@@ -1,5 +1,5 @@
-@startuml SSD_DUC004_Resume_After_Turn
-title SSD - DUC-004 Resume Cleaning After Direction Change
+@startuml SSD_UC004_Resume_After_Turn
+title SSD - UC-004 Resume Cleaning After Direction Change
 
 actor "Sensor Input" as Sensor
 participant "RVC SW Controller" as System
@@ -18,7 +18,7 @@ end
 
 alt front obstacle detected again
     Sensor -> System: reportObstacleState(front=true)
-    note right of System: Continue with DUC-003
+    note right of System: Continue with UC-003
 end
 deactivate System
 @enduml

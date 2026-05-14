@@ -1,5 +1,5 @@
-@startuml SSD_DUC005_Backward_On_Three_Side_Obstacle
-title SSD - DUC-005 Move Backward After Three-Side Obstacle Detection
+@startuml SSD_UC005_Backward_On_Three_Side_Obstacle
+title SSD - UC-005 Move Backward After Three-Side Obstacle Detection
 
 actor "Sensor Input" as Sensor
 participant "RVC SW Controller" as System
@@ -12,7 +12,7 @@ System -> Drive: moveBackward()
 
 alt side becomes available
     Sensor -> System: reportObstacleState(left=false or right=false)
-    note right of System: Continue with DUC-003
+    note right of System: Continue with UC-003
 else still blocked after backing up
     System -> Drive: stop()
 end

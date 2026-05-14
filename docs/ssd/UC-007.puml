@@ -1,5 +1,5 @@
-@startuml SSD_DUC007_Return_To_Normal_Power
-title SSD - DUC-007 Return Cleaning Power To Normal
+@startuml SSD_UC007_Return_To_Normal_Power
+title SSD - UC-007 Return Cleaning Power To Normal
 
 participant "RVC SW Controller" as System
 actor "Sensor Input" as Sensor

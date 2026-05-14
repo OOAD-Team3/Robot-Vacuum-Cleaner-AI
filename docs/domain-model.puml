@@ -38,7 +38,6 @@ class "Movement Command" as MovementCommand {
 
 class "Cleaning Command" as CleaningCommand {
   powerLevel
-  moppingEnabled
 }
 
 enum "Automatic Cleaning Status" as AutomaticCleaningStatus {

@@ -16,9 +16,9 @@ participant "MovementCommand" as MovementCommand
 actor "청소 장치" as Cleaner
 actor "주행 장치" as Drive
 
-Sensor -> Controller: reportObstacleState(front=false)
+Sensor -> Controller: reportFrontObstacleState(frontObstacleDetected=false)
 activate Controller
-Controller -> SensorState: update(frontObstacleDetected=false)
+Controller -> SensorState: updateFrontObstacle(frontObstacleDetected=false)
 Controller -> Cleaning: handleSensorState(SensorState)
 activate Cleaning
 Cleaning -> SensorState: isFrontObstacleDetected()
@@ -36,14 +36,14 @@ Cleaning --> Controller: decisionCompleted()
 deactivate Cleaning
 
 alt 전방 장애물 감지
-    Sensor -> Controller: reportObstacleState(front=true)
-    Controller -> SensorState: update(frontObstacleDetected=true)
-    Controller -> Cleaning: transitionToAvoidance()
+    Sensor -> Controller: reportFrontObstacleState(frontObstacleDetected=true)
+    Controller -> SensorState: updateFrontObstacle(frontObstacleDetected=true)
+    Controller -> Cleaning: handleSensorState(SensorState)
     note right of Cleaning: UC-002로 전환
 else 먼지 감지
     Sensor -> Controller: reportDustDetected()
-    Controller -> SensorState: update(dustDetected=true)
-    Controller -> Cleaning: transitionToDustResponse()
+    Controller -> SensorState: updateDustDetected(dustDetected=true)
+    Controller -> Cleaning: handleDustDetected(SensorState)
     note right of Cleaning: UC-006으로 전환
 end
 

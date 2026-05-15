@@ -5,7 +5,7 @@ actor "Sensor Input" as Sensor
 participant "RVC SW Controller" as System
 actor "Driving Device" as Drive
 
-Sensor -> System: reportObstacleState(left=true/false, right=true/false)
+Sensor -> System: reportSideObstacleState(leftObstacleDetected, rightObstacleDetected)
 activate System
 
 alt left blocked and right open

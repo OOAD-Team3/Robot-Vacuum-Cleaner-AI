@@ -14,9 +14,9 @@ participant "AvoidanceDecision" as AvoidanceDecision
 participant "MovementCommand" as MovementCommand
 actor "주행 장치" as Drive
 
-Sensor -> Controller: reportObstacleState(front=true, left=true, right=true)
+Sensor -> Controller: reportObstacleState(frontObstacleDetected=true, leftObstacleDetected=true, rightObstacleDetected=true)
 activate Controller
-Controller -> SensorState: update(front=true, left=true, right=true)
+Controller -> SensorState: updateObstacles(frontObstacleDetected=true, leftObstacleDetected=true, rightObstacleDetected=true)
 Controller -> Cleaning: handleThreeSideObstacle(SensorState)
 activate Cleaning
 Cleaning -> SensorState: isThreeSideBlocked()
@@ -33,8 +33,8 @@ alt 후진 가능
     MovementCommand --> Cleaning: backwardCommand
     Cleaning -> Drive: moveBackward()
     Drive --> Cleaning: backwardCompleted()
-    Sensor -> Controller: reportObstacleState(left=false/right=false)
-    Controller -> SensorState: updateSideAvailability()
+    Sensor -> Controller: reportSideObstacleState(leftObstacleDetected=false, rightObstacleDetected=false)
+    Controller -> SensorState: updateSideObstacles(leftObstacleDetected=false, rightObstacleDetected=false)
     Controller -> Cleaning: selectAvoidanceDirection(SensorState)
     note right of Cleaning: UC-003으로 전환해 회피 방향 선택
 else 후진 불가 및 좌우 모두 막힘

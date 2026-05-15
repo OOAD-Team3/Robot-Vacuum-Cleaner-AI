@@ -15,9 +15,9 @@ participant "AvoidanceDecision" as AvoidanceDecision
 participant "MovementCommand" as MovementCommand
 actor "주행 장치" as Drive
 
-Sensor -> Controller: reportObstacleState(left=?, right=?)
+Sensor -> Controller: reportSideObstacleState(leftObstacleDetected, rightObstacleDetected)
 activate Controller
-Controller -> SensorState: update(leftObstacleDetected, rightObstacleDetected)
+Controller -> SensorState: updateSideObstacles(leftObstacleDetected, rightObstacleDetected)
 Controller -> Cleaning: selectAvoidanceDirection(SensorState)
 activate Cleaning
 Cleaning -> SensorState: sideObstacleState()

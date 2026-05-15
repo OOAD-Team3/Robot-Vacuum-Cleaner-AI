@@ -31,7 +31,6 @@ Cleaning -> Cleaning: clearDustResponseState()
 
 alt 장애물 회피 중 유지 시간 종료
     Cleaning -> Cleaning: keepCurrentMovementStatus()
-    Cleaning -> Cleaner: setCleaningPower(NORMAL)
     note right of Cleaning: 주행 회피 상태는 변경하지 않고 청소 출력만 복귀
 else 일반 자동 청소 중 유지 시간 종료
     Cleaning -> Cleaning: keepStatus(CLEANING)

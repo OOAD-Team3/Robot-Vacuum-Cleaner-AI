@@ -18,7 +18,7 @@ actor "Time" as Time
 
 Sensor -> Controller: reportDustDetected()
 activate Controller
-Controller -> SensorState: update(dustDetected=true)
+Controller -> SensorState: updateDustDetected(dustDetected=true)
 Controller -> Cleaning: handleDustDetected(SensorState)
 activate Cleaning
 Cleaning -> SensorState: isDustDetected()
@@ -37,8 +37,8 @@ Cleaning -> Time: startTimer(duration)
 Cleaning --> Controller: dustResponseStarted()
 
 alt 먼지 대응 중 장애물 감지
-    Sensor -> Controller: reportObstacleState(front=true)
-    Controller -> SensorState: update(frontObstacleDetected=true)
+    Sensor -> Controller: reportFrontObstacleState(frontObstacleDetected=true)
+    Controller -> SensorState: updateFrontObstacle(frontObstacleDetected=true)
     Controller -> Cleaning: handleObstacleWhileDustResponse(SensorState)
     Cleaning -> DustResponse: isActive()
     DustResponse --> Cleaning: true

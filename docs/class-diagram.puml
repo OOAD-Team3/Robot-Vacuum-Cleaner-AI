@@ -13,7 +13,9 @@ hide empty members
 
 package "External Interfaces" as ExternalInterfaces {
   interface "SensorInput" as SensorInput {
-    +reportObstacleState(front: boolean, left: boolean, right: boolean)
+    +reportFrontObstacleState(frontObstacleDetected: boolean)
+    +reportSideObstacleState(leftObstacleDetected: boolean, rightObstacleDetected: boolean)
+    +reportObstacleState(frontObstacleDetected: boolean, leftObstacleDetected: boolean, rightObstacleDetected: boolean)
     +reportDustDetected()
   }
 
@@ -33,7 +35,6 @@ package "External Interfaces" as ExternalInterfaces {
 
   interface "Time" as Time {
     +startTimer(duration: Duration)
-    +increasedPowerDurationExpired()
   }
 }
 
@@ -41,9 +42,11 @@ package "Application Controller" as ApplicationController {
   class "RVCSWController" as RVCSWController {
     -sensorState: SensorState
     -automaticCleaning: AutomaticCleaning
-    +reportObstacleState(front: boolean, left: boolean, right: boolean)
+    +reportFrontObstacleState(frontObstacleDetected: boolean)
+    +reportSideObstacleState(leftObstacleDetected: boolean, rightObstacleDetected: boolean)
+    +reportObstacleState(frontObstacleDetected: boolean, leftObstacleDetected: boolean, rightObstacleDetected: boolean)
     +reportDustDetected()
-    +handleDustResponseTimeout()
+    +increasedPowerDurationExpired()
   }
 }
 
@@ -59,6 +62,9 @@ package "Domain Model" as DomainModel {
     +handleDustDetected(sensorState: SensorState)
     +handleObstacleWhileDustResponse(sensorState: SensorState)
     +handleDustResponseTimeout()
+    +markDustResponsePending()
+    +clearDustResponseState()
+    +keepCurrentMovementStatus()
     +changeStatus(status: AutomaticCleaningStatus)
     +keepStatus(status: AutomaticCleaningStatus)
   }
@@ -68,8 +74,10 @@ package "Domain Model" as DomainModel {
     -leftObstacleDetected: boolean
     -rightObstacleDetected: boolean
     -dustDetected: boolean
-    +update(frontObstacleDetected: boolean, leftObstacleDetected: boolean, rightObstacleDetected: boolean)
-    +update(dustDetected: boolean)
+    +updateFrontObstacle(frontObstacleDetected: boolean)
+    +updateSideObstacles(leftObstacleDetected: boolean, rightObstacleDetected: boolean)
+    +updateObstacles(frontObstacleDetected: boolean, leftObstacleDetected: boolean, rightObstacleDetected: boolean)
+    +updateDustDetected(dustDetected: boolean)
     +isFrontObstacleDetected(): boolean
     +isDustDetected(): boolean
     +isThreeSideBlocked(): boolean
@@ -89,6 +97,7 @@ package "Domain Model" as DomainModel {
   class "AvoidanceDecision" as AvoidanceDecision {
     -selectedDirection: AvoidanceDirection
     -backwardRequired: boolean
+    +prepareDirectionDecision()
     +select(direction: AvoidanceDirection)
     +selectByPolicy(policy: AvoidanceDirectionPolicy)
     +evaluateBackwardRequired(sensorState: SensorState)

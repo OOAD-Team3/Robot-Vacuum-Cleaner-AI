@@ -10,7 +10,6 @@ activate System
 System -> Cleaner: setCleaningPower(normal)
 
 alt obstacle avoidance is active
-    System -> Cleaner: setCleaningPower(normal)
     note right of System: Driving state remains unchanged
 end
 deactivate System

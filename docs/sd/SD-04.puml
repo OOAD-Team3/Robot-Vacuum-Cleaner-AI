@@ -17,9 +17,9 @@ participant "MovementCommand" as MovementCommand
 actor "주행 장치" as Drive
 actor "청소 장치" as Cleaner
 
-Sensor -> Controller: reportObstacleState(front=false)
+Sensor -> Controller: reportFrontObstacleState(frontObstacleDetected=false)
 activate Controller
-Controller -> SensorState: update(frontObstacleDetected=false)
+Controller -> SensorState: updateFrontObstacle(frontObstacleDetected=false)
 Controller -> Cleaning: resumeAfterTurn(SensorState)
 activate Cleaning
 Cleaning -> SensorState: isFrontObstacleDetected()
@@ -46,8 +46,8 @@ Cleaning -> Cleaning: changeStatus(CLEANING)
 Cleaning --> Controller: resumed()
 
 alt 방향 전환 후 전방 장애물 재감지
-    Sensor -> Controller: reportObstacleState(front=true)
-    Controller -> SensorState: update(frontObstacleDetected=true)
+    Sensor -> Controller: reportFrontObstacleState(frontObstacleDetected=true)
+    Controller -> SensorState: updateFrontObstacle(frontObstacleDetected=true)
     Controller -> Cleaning: selectAvoidanceDirection(SensorState)
     note right of Cleaning: UC-003을 다시 수행
 end

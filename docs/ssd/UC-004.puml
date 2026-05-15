@@ -6,7 +6,7 @@ participant "RVC SW Controller" as System
 actor "Driving Device" as Drive
 actor "Cleaning Device" as Cleaner
 
-Sensor -> System: reportObstacleState(front=false)
+Sensor -> System: reportFrontObstacleState(frontObstacleDetected=false)
 activate System
 System -> Drive: moveForward()
 
@@ -17,7 +17,7 @@ else normal cleaning
 end
 
 alt front obstacle detected again
-    Sensor -> System: reportObstacleState(front=true)
+    Sensor -> System: reportFrontObstacleState(frontObstacleDetected=true)
     note right of System: Continue with UC-003
 end
 deactivate System

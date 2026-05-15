@@ -1,0 +1,18 @@
+@startuml SSD_UC006_Handle_Dust_Detected
+title SSD - UC-006 Handle Dust Detection Event
+
+actor "Sensor Input" as Sensor
+participant "RVC SW Controller" as System
+actor "Cleaning Device" as Cleaner
+
+Sensor -> System: reportDustDetected()
+activate System
+System -> Cleaner: setCleaningPower(increased)
+
+alt obstacle detected during dust response
+    Sensor -> System: reportObstacleState(front=true)
+    note right of System: Driving follows UC-002 or UC-005
+    System -> Cleaner: keepCleaningPower(increased)
+end
+deactivate System
+@enduml

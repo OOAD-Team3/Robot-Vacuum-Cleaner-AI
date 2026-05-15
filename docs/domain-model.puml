@@ -1,0 +1,98 @@
+@startuml RVC_Domain_Model
+title RVC SW Controller Domain Model
+
+skinparam classAttributeIconSize 0
+hide methods
+
+class "Automatic Cleaning" as AutomaticCleaning {
+  status
+}
+
+class "Sensor State" as SensorState {
+  frontObstacleDetected
+  leftObstacleDetected
+  rightObstacleDetected
+  dustDetected
+}
+
+class "Cleaning Policy" as CleaningPolicy {
+  avoidanceDirectionPolicy
+  increasedPowerLevel
+  increasedPowerDuration
+}
+
+class "Avoidance Decision" as AvoidanceDecision {
+  selectedDirection
+  backwardRequired
+}
+
+class "Dust Response" as DustResponse {
+  active
+  powerLevel
+  duration
+}
+
+class "Movement Command" as MovementCommand {
+  commandType
+}
+
+class "Cleaning Command" as CleaningCommand {
+  powerLevel
+}
+
+enum "Automatic Cleaning Status" as AutomaticCleaningStatus {
+  CLEANING
+  AVOIDING_OBSTACLE
+  DUST_RESPONSE
+  BLOCKED
+  STOPPED
+}
+
+enum "Movement Command Type" as MovementCommandType {
+  MOVE_FORWARD
+  MOVE_BACKWARD
+  TURN_LEFT
+  TURN_RIGHT
+  STOP
+}
+
+enum "Cleaning Power Level" as CleaningPowerLevel {
+  NORMAL
+  INCREASED
+}
+
+enum "Avoidance Direction Policy" as AvoidanceDirectionPolicy {
+  LEFT_FIRST
+  RIGHT_FIRST
+  AVAILABLE_SIDE
+}
+
+AutomaticCleaning "1" --> "1" SensorState : reads
+AutomaticCleaning "1" --> "1" CleaningPolicy : uses
+AutomaticCleaning "1" --> "0..*" MovementCommand : issues
+AutomaticCleaning "1" --> "0..*" CleaningCommand : issues
+AutomaticCleaning "1" --> "1" AutomaticCleaningStatus : has
+
+SensorState "1" --> "0..1" AvoidanceDecision : triggers
+SensorState "1" --> "0..1" DustResponse : triggers
+
+CleaningPolicy "1" --> "1" AvoidanceDirectionPolicy : defines
+CleaningPolicy "1" --> "1" CleaningPowerLevel : defines
+
+AvoidanceDecision "1" --> "1..*" MovementCommand : produces
+DustResponse "1" --> "1..*" CleaningCommand : produces
+
+MovementCommand "1" --> "1" MovementCommandType : uses
+CleaningCommand "1" --> "1" CleaningPowerLevel : uses
+
+note bottom of SensorState
+  Represents obstacle and dust inputs
+  used in one controller decision.
+end note
+
+note bottom of CleaningPolicy
+  Contains only configurable rules required
+  by obstacle avoidance and dust response.
+end note
+
+@enduml

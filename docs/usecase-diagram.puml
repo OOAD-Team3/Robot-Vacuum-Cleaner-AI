@@ -1,0 +1,56 @@
+@startuml RVC_Use_Case_Diagram
+title RVC SW Controller Use Case Diagram
+left to right direction
+
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+actor "센서 입력" as Sensor
+actor "주행 장치" as Drive
+actor "청소 장치" as Cleaner
+
+rectangle "RVC SW Controller" as System {
+  usecase "UC-001\n장애물이 없을 때\n직진 청소" as UC001
+  usecase "UC-002\n전방 장애물 감지 후\n정지" as UC002
+  usecase "UC-003\n좌측 또는 우측\n회피 방향 선택" as UC003
+  usecase "UC-004\n방향 전환 후\n청소 재개" as UC004
+  usecase "UC-005\n삼면 장애물 감지 후\n후진" as UC005
+  usecase "UC-006\n먼지 감지 이벤트 처리" as UC006
+  usecase "UC-007\n청소 출력 일반 상태\n복귀" as UC007
+}
+
+Sensor --> UC001
+Sensor --> UC002
+Sensor --> UC003
+Sensor --> UC004
+Sensor --> UC005
+Sensor --> UC006
+Sensor --> UC007
+
+UC001 --> Drive
+UC002 --> Drive
+UC003 --> Drive
+UC004 --> Drive
+UC005 --> Drive
+
+UC001 --> Cleaner
+UC004 --> Cleaner
+UC006 --> Cleaner
+UC007 --> Cleaner
+
+UC002 ..> UC001 : <<extend>>\n전방 장애물 감지
+UC006 ..> UC001 : <<extend>>\n먼지 감지
+UC005 ..> UC002 : <<extend>>\n삼면 장애물 감지
+UC002 ..> UC003 : <<include>>
+UC003 ..> UC004 : <<include>>
+UC005 ..> UC003 : <<include>>
+UC006 ..> UC002 : <<extend>>\n장애물 회피 동시 발생
+UC006 ..> UC005 : <<extend>>\n삼면 장애물 동시 발생
+UC007 ..> UC006 : <<extend>>\n증가 출력 유지 시간 종료
+
+note bottom of System
+  모바일 앱 통신, 머신러닝 기반 판단,
+  특정 지점 선회 청소는 현재 범위에서 제외한다.
+end note
+
+@enduml

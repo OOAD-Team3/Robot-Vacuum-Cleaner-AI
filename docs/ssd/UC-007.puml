@@ -1,0 +1,17 @@
+@startuml SSD_UC007_Return_To_Normal_Power
+title SSD - UC-007 Return Cleaning Power To Normal
+
+participant "RVC SW Controller" as System
+actor "Cleaning Device" as Cleaner
+actor "Time" as Time
+
+Time -> System: increasedPowerDurationExpired()
+activate System
+System -> Cleaner: setCleaningPower(normal)
+
+alt obstacle avoidance is active
+    System -> Cleaner: setCleaningPower(normal)
+    note right of System: Driving state remains unchanged
+end
+deactivate System
+@enduml

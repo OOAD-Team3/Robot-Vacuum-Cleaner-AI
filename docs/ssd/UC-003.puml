@@ -1,0 +1,21 @@
+@startuml SSD_UC003_Select_Avoidance_Direction
+title SSD - UC-003 Select Left or Right Avoidance Direction
+
+actor "Sensor Input" as Sensor
+participant "RVC SW Controller" as System
+actor "Driving Device" as Drive
+
+Sensor -> System: reportObstacleState(left=true/false, right=true/false)
+activate System
+
+alt left blocked and right open
+    System -> Drive: turnRight()
+else right blocked and left open
+    System -> Drive: turnLeft()
+else left and right open
+    System -> Drive: turn(selectedDirection)
+else left and right blocked
+    note right of System: Continue with UC-005
+end
+deactivate System
+@enduml

@@ -1,0 +1,23 @@
+@startuml SSD_UC001_Forward_Cleaning
+title SSD - UC-001 Forward Cleaning Without Obstacle
+
+actor "Sensor Input" as Sensor
+participant "RVC SW Controller" as System
+actor "Driving Device" as Drive
+actor "Cleaning Device" as Cleaner
+
+Sensor -> System: reportObstacleState(front=false)
+activate System
+System -> Cleaner: setCleaningPower(normal)
+System -> Drive: moveForward()
+
+alt front obstacle detected
+    Sensor -> System: reportObstacleState(front=true)
+    System -> Drive: stop()
+    note right of System: Continue with UC-002
+else dust detected
+    Sensor -> System: reportDustDetected()
+    note right of System: Continue with UC-006
+end
+deactivate System
+@enduml

@@ -1,0 +1,52 @@
+' SD-05. UC-005 삼면 장애물 감지 후 후진
+' Related Use Case: UC-005. 삼면 장애물 감지 후 후진
+' Intent: 전방, 좌측, 우측이 모두 막힌 상태에서 정지 후 후진하고 다시 회피 방향 선택으로 넘기는 흐름을 표현한다.
+' Note: 후진할 수 없고 좌우가 모두 막힌 경우 정지 상태를 유지한다.
+
+@startuml SD_05_UC005_Backward_On_Three_Side_Obstacle
+title SD-05 - UC-005 삼면 장애물 감지 후 후진
+
+actor "센서 입력" as Sensor
+participant "RVC SW Controller" as Controller
+participant "SensorState" as SensorState
+participant "AutomaticCleaning" as Cleaning
+participant "AvoidanceDecision" as AvoidanceDecision
+participant "MovementCommand" as MovementCommand
+actor "주행 장치" as Drive
+
+Sensor -> Controller: reportObstacleState(front=true, left=true, right=true)
+activate Controller
+Controller -> SensorState: update(front=true, left=true, right=true)
+Controller -> Cleaning: handleThreeSideObstacle(SensorState)
+activate Cleaning
+Cleaning -> SensorState: isThreeSideBlocked()
+SensorState --> Cleaning: true
+Cleaning -> Cleaning: changeStatus(BLOCKED)
+Cleaning -> MovementCommand: create(STOP)
+MovementCommand --> Cleaning: stopCommand
+Cleaning -> Drive: stop()
+Cleaning -> AvoidanceDecision: evaluateBackwardRequired(SensorState)
+AvoidanceDecision --> Cleaning: backwardRequired=true
+
+alt 후진 가능
+    Cleaning -> MovementCommand: create(MOVE_BACKWARD)
+    MovementCommand --> Cleaning: backwardCommand
+    Cleaning -> Drive: moveBackward()
+    Drive --> Cleaning: backwardCompleted()
+    Sensor -> Controller: reportObstacleState(left=false/right=false)
+    Controller -> SensorState: updateSideAvailability()
+    Controller -> Cleaning: selectAvoidanceDirection(SensorState)
+    note right of Cleaning: UC-003으로 전환해 회피 방향 선택
+else 후진 불가 및 좌우 모두 막힘
+    Cleaning -> AvoidanceDecision: markNoAvailableDirection()
+    AvoidanceDecision --> Cleaning: availableDirection=false
+    Cleaning -> MovementCommand: create(STOP)
+    MovementCommand --> Cleaning: stopCommand
+    Cleaning -> Drive: stop()
+    Cleaning -> Cleaning: keepStatus(STOPPED)
+end
+
+Cleaning --> Controller: threeSideObstacleHandled()
+deactivate Cleaning
+deactivate Controller
+@enduml

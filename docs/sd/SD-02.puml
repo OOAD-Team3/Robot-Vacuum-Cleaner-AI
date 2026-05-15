@@ -1,0 +1,46 @@
+' SD-02. UC-002 전방 장애물 감지 후 정지
+' Related Use Case: UC-002. 전방 장애물 감지 후 정지
+' Intent: 전방 장애물 감지 시 주행을 정지하고 회피 방향 판단으로 넘기는 흐름을 표현한다.
+' Note: 삼면 장애물은 UC-005로, 정지 중 먼지 감지는 UC-006 출력 처리로 이어진다.
+
+@startuml SD_02_UC002_Stop_On_Front_Obstacle
+title SD-02 - UC-002 전방 장애물 감지 후 정지
+
+actor "센서 입력" as Sensor
+participant "RVC SW Controller" as Controller
+participant "SensorState" as SensorState
+participant "AutomaticCleaning" as Cleaning
+participant "MovementCommand" as MovementCommand
+participant "AvoidanceDecision" as AvoidanceDecision
+actor "주행 장치" as Drive
+
+Sensor -> Controller: reportObstacleState(front=true)
+activate Controller
+Controller -> SensorState: update(frontObstacleDetected=true)
+Controller -> Cleaning: handleSensorState(SensorState)
+activate Cleaning
+Cleaning -> SensorState: isFrontObstacleDetected()
+SensorState --> Cleaning: true
+Cleaning -> Cleaning: changeStatus(AVOIDING_OBSTACLE)
+Cleaning -> MovementCommand: create(STOP)
+MovementCommand --> Cleaning: stopCommand
+Cleaning -> Drive: stop()
+Cleaning -> AvoidanceDecision: prepareDirectionDecision()
+AvoidanceDecision --> Cleaning: directionDecisionRequired
+Cleaning --> Controller: avoidanceRequired()
+deactivate Cleaning
+
+alt 전방, 좌측, 우측 장애물이 모두 감지됨
+    Sensor -> Controller: reportObstacleState(front=true, left=true, right=true)
+    Controller -> SensorState: update(front=true, left=true, right=true)
+    Controller -> Cleaning: transitionToBackwardAvoidance()
+    note right of Cleaning: UC-005로 전환
+else 정지 중 먼지 감지
+    Sensor -> Controller: reportDustDetected()
+    Controller -> SensorState: update(dustDetected=true)
+    Controller -> Cleaning: markDustResponsePending()
+    note right of Cleaning: 주행 회피 판단을 우선하고 청소 출력은 UC-006에 따라 처리
+end
+
+deactivate Controller
+@enduml

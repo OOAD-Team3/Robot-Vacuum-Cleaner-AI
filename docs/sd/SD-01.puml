@@ -1,0 +1,51 @@
+' SD-01. UC-001 장애물이 없을 때 직진 청소
+' Related Use Case: UC-001. 장애물이 없을 때 직진 청소
+' Intent: 전방 장애물이 없을 때 일반 청소 출력과 전진 명령을 생성하는 내부 객체 협력을 표현한다.
+' Note: 전방 장애물 또는 먼지 감지 시 각각 UC-002, UC-006으로 전환되는 대안 흐름을 포함한다.
+
+@startuml SD_01_UC001_Forward_Cleaning
+title SD-01 - UC-001 장애물이 없을 때 직진 청소
+
+actor "센서 입력" as Sensor
+participant "RVC SW Controller" as Controller
+participant "SensorState" as SensorState
+participant "AutomaticCleaning" as Cleaning
+participant "CleaningPolicy" as Policy
+participant "CleaningCommand" as CleaningCommand
+participant "MovementCommand" as MovementCommand
+actor "청소 장치" as Cleaner
+actor "주행 장치" as Drive
+
+Sensor -> Controller: reportObstacleState(front=false)
+activate Controller
+Controller -> SensorState: update(frontObstacleDetected=false)
+Controller -> Cleaning: handleSensorState(SensorState)
+activate Cleaning
+Cleaning -> SensorState: isFrontObstacleDetected()
+SensorState --> Cleaning: false
+Cleaning -> Policy: normalPowerLevel()
+Policy --> Cleaning: NORMAL
+Cleaning -> CleaningCommand: create(NORMAL)
+CleaningCommand --> Cleaning: cleaningCommand
+Cleaning -> Cleaner: setCleaningPower(NORMAL)
+Cleaning -> MovementCommand: create(MOVE_FORWARD)
+MovementCommand --> Cleaning: movementCommand
+Cleaning -> Drive: moveForward()
+Cleaning -> Cleaning: keepStatus(CLEANING)
+Cleaning --> Controller: decisionCompleted()
+deactivate Cleaning
+
+alt 전방 장애물 감지
+    Sensor -> Controller: reportObstacleState(front=true)
+    Controller -> SensorState: update(frontObstacleDetected=true)
+    Controller -> Cleaning: transitionToAvoidance()
+    note right of Cleaning: UC-002로 전환
+else 먼지 감지
+    Sensor -> Controller: reportDustDetected()
+    Controller -> SensorState: update(dustDetected=true)
+    Controller -> Cleaning: transitionToDustResponse()
+    note right of Cleaning: UC-006으로 전환
+end
+
+deactivate Controller
+@enduml

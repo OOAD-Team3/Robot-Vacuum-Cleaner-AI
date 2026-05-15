@@ -1,0 +1,56 @@
+' SD-03. UC-003 좌측 또는 우측 회피 방향 선택
+' Related Use Case: UC-003. 좌측 또는 우측 회피 방향 선택
+' Intent: 좌우 장애물 상태와 회피 방향 정책을 이용해 좌회전 또는 우회전 명령을 결정하는 흐름을 표현한다.
+' Note: 좌우가 모두 막힌 경우 방향을 선택하지 않고 UC-005로 전환한다.
+
+@startuml SD_03_UC003_Select_Avoidance_Direction
+title SD-03 - UC-003 좌측 또는 우측 회피 방향 선택
+
+actor "센서 입력" as Sensor
+participant "RVC SW Controller" as Controller
+participant "SensorState" as SensorState
+participant "AutomaticCleaning" as Cleaning
+participant "CleaningPolicy" as Policy
+participant "AvoidanceDecision" as AvoidanceDecision
+participant "MovementCommand" as MovementCommand
+actor "주행 장치" as Drive
+
+Sensor -> Controller: reportObstacleState(left=?, right=?)
+activate Controller
+Controller -> SensorState: update(leftObstacleDetected, rightObstacleDetected)
+Controller -> Cleaning: selectAvoidanceDirection(SensorState)
+activate Cleaning
+Cleaning -> SensorState: sideObstacleState()
+SensorState --> Cleaning: leftBlocked, rightBlocked
+
+alt 좌측만 막힘
+    Cleaning -> AvoidanceDecision: select(RIGHT)
+    AvoidanceDecision --> Cleaning: selectedDirection=RIGHT
+    Cleaning -> MovementCommand: create(TURN_RIGHT)
+    MovementCommand --> Cleaning: turnRightCommand
+    Cleaning -> Drive: turnRight()
+else 우측만 막힘
+    Cleaning -> AvoidanceDecision: select(LEFT)
+    AvoidanceDecision --> Cleaning: selectedDirection=LEFT
+    Cleaning -> MovementCommand: create(TURN_LEFT)
+    MovementCommand --> Cleaning: turnLeftCommand
+    Cleaning -> Drive: turnLeft()
+else 좌측과 우측 모두 이동 가능
+    Cleaning -> Policy: avoidanceDirectionPolicy()
+    Policy --> Cleaning: configuredPolicy
+    Cleaning -> AvoidanceDecision: selectByPolicy(configuredPolicy)
+    AvoidanceDecision --> Cleaning: selectedDirection
+    Cleaning -> MovementCommand: createTurnCommand(selectedDirection)
+    MovementCommand --> Cleaning: turnCommand
+    Cleaning -> Drive: turn(selectedDirection)
+else 좌측과 우측 모두 막힘
+    Cleaning -> AvoidanceDecision: markBackwardRequired()
+    AvoidanceDecision --> Cleaning: backwardRequired=true
+    Cleaning -> Cleaning: changeStatus(BLOCKED)
+    note right of Cleaning: UC-005로 전환
+end
+
+Cleaning --> Controller: directionDecisionCompleted()
+deactivate Cleaning
+deactivate Controller
+@enduml

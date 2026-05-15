@@ -1,0 +1,43 @@
+' SD-07. UC-007 청소 출력 일반 상태 복귀
+' Related Use Case: UC-007. 청소 출력 일반 상태 복귀
+' Intent: 증가 출력 유지 시간이 끝났을 때 먼지 대응 상태를 종료하고 일반 출력 명령을 생성하는 흐름을 표현한다.
+' Note: 장애물 회피 중이어도 주행 상태는 유지하고 청소 출력만 일반 상태로 복귀한다.
+
+@startuml SD_07_UC007_Return_To_Normal_Power
+title SD-07 - UC-007 청소 출력 일반 상태 복귀
+
+actor "Time" as Time
+participant "RVC SW Controller" as Controller
+participant "AutomaticCleaning" as Cleaning
+participant "DustResponse" as DustResponse
+participant "CleaningPolicy" as Policy
+participant "CleaningCommand" as CleaningCommand
+actor "청소 장치" as Cleaner
+
+Time -> Controller: increasedPowerDurationExpired()
+activate Controller
+Controller -> Cleaning: handleDustResponseTimeout()
+activate Cleaning
+Cleaning -> DustResponse: isActive()
+DustResponse --> Cleaning: true
+Cleaning -> DustResponse: expire()
+DustResponse --> Cleaning: active=false
+Cleaning -> Policy: normalPowerLevel()
+Policy --> Cleaning: NORMAL
+Cleaning -> CleaningCommand: create(NORMAL)
+CleaningCommand --> Cleaning: normalPowerCommand
+Cleaning -> Cleaner: setCleaningPower(NORMAL)
+Cleaning -> Cleaning: clearDustResponseState()
+
+alt 장애물 회피 중 유지 시간 종료
+    Cleaning -> Cleaning: keepCurrentMovementStatus()
+    Cleaning -> Cleaner: setCleaningPower(NORMAL)
+    note right of Cleaning: 주행 회피 상태는 변경하지 않고 청소 출력만 복귀
+else 일반 자동 청소 중 유지 시간 종료
+    Cleaning -> Cleaning: keepStatus(CLEANING)
+end
+
+Cleaning --> Controller: normalPowerRestored()
+deactivate Cleaning
+deactivate Controller
+@enduml

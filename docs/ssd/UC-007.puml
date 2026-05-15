@@ -2,7 +2,6 @@
 title SSD - UC-007 Return Cleaning Power To Normal
 
 participant "RVC SW Controller" as System
-actor "Sensor Input" as Sensor
 actor "Cleaning Device" as Cleaner
 actor "Time" as Time
 

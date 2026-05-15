@@ -1,0 +1,212 @@
+' Class Diagram derived from docs/sd/SD-01.puml through SD-07.puml.
+' Intent: Show the structural design implied by the sequence diagrams for automatic cleaning,
+' obstacle avoidance, dust response, and command generation.
+' Scope: Hardware details are represented as interfaces because requirements keep sensor,
+' driving, and cleaning devices abstract.
+
+@startuml RVC_Class_Diagram
+title RVC SW Controller Class Diagram
+
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+hide empty members
+
+package "External Interfaces" as ExternalInterfaces {
+  interface "SensorInput" as SensorInput {
+    +reportObstacleState(front: boolean, left: boolean, right: boolean)
+    +reportDustDetected()
+  }
+
+  interface "DrivingDevice" as DrivingDevice {
+    +moveForward()
+    +moveBackward()
+    +turnLeft()
+    +turnRight()
+    +turn(direction: AvoidanceDirection)
+    +stop()
+  }
+
+  interface "CleaningDevice" as CleaningDevice {
+    +setCleaningPower(powerLevel: CleaningPowerLevel)
+    +keepCleaningPower(powerLevel: CleaningPowerLevel)
+  }
+
+  interface "Time" as Time {
+    +startTimer(duration: Duration)
+    +increasedPowerDurationExpired()
+  }
+}
+
+package "Application Controller" as ApplicationController {
+  class "RVCSWController" as RVCSWController {
+    -sensorState: SensorState
+    -automaticCleaning: AutomaticCleaning
+    +reportObstacleState(front: boolean, left: boolean, right: boolean)
+    +reportDustDetected()
+    +handleDustResponseTimeout()
+  }
+}
+
+package "Domain Model" as DomainModel {
+  class "AutomaticCleaning" as AutomaticCleaning {
+    -status: AutomaticCleaningStatus
+    -policy: CleaningPolicy
+    -dustResponse: DustResponse
+    +handleSensorState(sensorState: SensorState)
+    +selectAvoidanceDirection(sensorState: SensorState): AvoidanceDecision
+    +resumeAfterTurn(sensorState: SensorState)
+    +handleThreeSideObstacle(sensorState: SensorState)
+    +handleDustDetected(sensorState: SensorState)
+    +handleObstacleWhileDustResponse(sensorState: SensorState)
+    +handleDustResponseTimeout()
+    +changeStatus(status: AutomaticCleaningStatus)
+    +keepStatus(status: AutomaticCleaningStatus)
+  }
+
+  class "SensorState" as SensorState {
+    -frontObstacleDetected: boolean
+    -leftObstacleDetected: boolean
+    -rightObstacleDetected: boolean
+    -dustDetected: boolean
+    +update(frontObstacleDetected: boolean, leftObstacleDetected: boolean, rightObstacleDetected: boolean)
+    +update(dustDetected: boolean)
+    +isFrontObstacleDetected(): boolean
+    +isDustDetected(): boolean
+    +isThreeSideBlocked(): boolean
+    +sideObstacleState(): SideObstacleState
+  }
+
+  class "CleaningPolicy" as CleaningPolicy {
+    -avoidanceDirectionPolicy: AvoidanceDirectionPolicy
+    -increasedPowerLevel: CleaningPowerLevel
+    -increasedPowerDuration: Duration
+    +normalPowerLevel(): CleaningPowerLevel
+    +increasedPowerLevel(): CleaningPowerLevel
+    +increasedPowerDuration(): Duration
+    +avoidanceDirectionPolicy(): AvoidanceDirectionPolicy
+  }
+
+  class "AvoidanceDecision" as AvoidanceDecision {
+    -selectedDirection: AvoidanceDirection
+    -backwardRequired: boolean
+    +select(direction: AvoidanceDirection)
+    +selectByPolicy(policy: AvoidanceDirectionPolicy)
+    +evaluateBackwardRequired(sensorState: SensorState)
+    +markBackwardRequired()
+    +markNoAvailableDirection()
+  }
+
+  class "DustResponse" as DustResponse {
+    -active: boolean
+    -powerLevel: CleaningPowerLevel
+    -duration: Duration
+    +start(powerLevel: CleaningPowerLevel, duration: Duration)
+    +expire()
+    +isActive(): boolean
+    +currentPowerLevel(): CleaningPowerLevel
+  }
+
+  class "MovementCommand" as MovementCommand {
+    -commandType: MovementCommandType
+    -direction: AvoidanceDirection
+    +create(commandType: MovementCommandType): MovementCommand
+    +createTurnCommand(direction: AvoidanceDirection): MovementCommand
+  }
+
+  class "CleaningCommand" as CleaningCommand {
+    -powerLevel: CleaningPowerLevel
+    +create(powerLevel: CleaningPowerLevel): CleaningCommand
+  }
+
+  class "SideObstacleState" as SideObstacleState {
+    -leftBlocked: boolean
+    -rightBlocked: boolean
+  }
+}
+
+package "Value Types" as ValueTypes {
+  enum "AutomaticCleaningStatus" as AutomaticCleaningStatus {
+    CLEANING
+    AVOIDING_OBSTACLE
+    DUST_RESPONSE
+    BLOCKED
+    STOPPED
+  }
+
+  enum "MovementCommandType" as MovementCommandType {
+    MOVE_FORWARD
+    MOVE_BACKWARD
+    TURN_LEFT
+    TURN_RIGHT
+    STOP
+  }
+
+  enum "CleaningPowerLevel" as CleaningPowerLevel {
+    NORMAL
+    INCREASED
+  }
+
+  enum "AvoidanceDirectionPolicy" as AvoidanceDirectionPolicy {
+    LEFT_FIRST
+    RIGHT_FIRST
+    AVAILABLE_SIDE
+  }
+
+  enum "AvoidanceDirection" as AvoidanceDirection {
+    LEFT
+    RIGHT
+  }
+
+  class "Duration" as Duration <<value object>>
+}
+
+SensorInput ..> RVCSWController : reports input to
+Time ..> RVCSWController : notifies timeout to
+
+RVCSWController *-- SensorState
+RVCSWController *-- AutomaticCleaning
+RVCSWController --> DrivingDevice : sends movement commands
+RVCSWController --> CleaningDevice : sends cleaning commands
+RVCSWController --> Time : starts timer
+
+AutomaticCleaning --> SensorState : reads
+AutomaticCleaning *-- CleaningPolicy
+AutomaticCleaning *-- DustResponse
+AutomaticCleaning ..> AvoidanceDecision : creates/updates
+AutomaticCleaning ..> MovementCommand : creates
+AutomaticCleaning ..> CleaningCommand : creates
+AutomaticCleaning --> DrivingDevice : executes movement
+AutomaticCleaning --> CleaningDevice : executes cleaning
+AutomaticCleaning --> Time : starts dust timer
+
+SensorState --> SideObstacleState : returns
+AutomaticCleaning --> AutomaticCleaningStatus : has
+CleaningPolicy --> AvoidanceDirectionPolicy : uses
+CleaningPolicy --> CleaningPowerLevel : defines
+CleaningPolicy --> Duration : defines
+AvoidanceDecision --> AvoidanceDirection : selects
+AvoidanceDecision --> SensorState : evaluates
+MovementCommand --> MovementCommandType : uses
+MovementCommand --> AvoidanceDirection : optional direction
+CleaningCommand --> CleaningPowerLevel : uses
+DustResponse --> CleaningPowerLevel : keeps
+DustResponse --> Duration : keeps
+DrivingDevice ..> AvoidanceDirection : turns by
+
+note right of RVCSWController
+  Receives external events from SensorInput and Time,
+  updates SensorState, and delegates decisions to AutomaticCleaning.
+end note
+
+note bottom of AutomaticCleaning
+  Central use-case coordinator derived from SD-01..SD-07.
+  It owns cleaning status, obstacle avoidance flow,
+  dust response flow, and command creation decisions.
+end note
+
+note bottom of ExternalInterfaces
+  These represent abstract hardware or time inputs.
+  Detailed hardware control is outside the current scope.
+end note
+
+@enduml

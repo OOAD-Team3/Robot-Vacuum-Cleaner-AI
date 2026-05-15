@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-이 문서는 `requirements.md`와 `functional-and-non-functional-requirements.md`를 바탕으로 Robot Vacuum Cleaner(RVC) SW Controller의 use case를 정리한다.
+이 문서는 `requirements.md`와 `functional-and-non-functional-requirements.md`를 바탕으로 Robot Vacuum Cleaner(RVC) SW Controller의 use case를 정리한다. 이때 Use Case Summary 및 Traceability Matrix에서 사용하는 `FR-`/`NFR-` 형태의 요구사항 ID는 `functional-and-non-functional-requirements.md`를 기준으로 한다.
 
 현재 범위는 자동 청소 기능이다. 센서, 모터, 브러시의 상세 하드웨어 구현은 제외하고, SW Controller가 입력을 해석해 어떤 동작 명령을 결정해야 하는지에 집중한다.
 

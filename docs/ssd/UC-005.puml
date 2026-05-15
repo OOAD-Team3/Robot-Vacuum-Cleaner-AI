@@ -11,8 +11,13 @@ System -> Drive: stop()
 
 alt backward available
     System -> Drive: moveBackward()
-    Sensor -> System: reportObstacleState(left=false or right=false)
-    note right of System: Continue with UC-003
+    alt left side becomes available
+        Sensor -> System: reportObstacleState(left=false)
+        note right of System: Continue with UC-003
+    else right side becomes available
+        Sensor -> System: reportObstacleState(right=false)
+        note right of System: Continue with UC-003
+    end
 else backward unavailable and both sides blocked
     System -> Drive: stop()
 end

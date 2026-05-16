@@ -6,13 +6,13 @@ participant "RVC SW Controller" as System
 actor "Driving Device" as Drive
 actor "Cleaning Device" as Cleaner
 
-Sensor -> System: reportObstacleState(front=false)
+Sensor -> System: reportFrontObstacleState(frontObstacleDetected=false)
 activate System
 System -> Cleaner: setCleaningPower(normal)
 System -> Drive: moveForward()
 
 alt front obstacle detected
-    Sensor -> System: reportObstacleState(front=true)
+    Sensor -> System: reportFrontObstacleState(frontObstacleDetected=true)
     System -> Drive: stop()
     note right of System: Continue with UC-002
 else dust detected

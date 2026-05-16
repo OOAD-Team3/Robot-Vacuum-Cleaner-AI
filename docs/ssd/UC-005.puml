@@ -5,17 +5,17 @@ actor "Sensor Input" as Sensor
 participant "RVC SW Controller" as System
 actor "Driving Device" as Drive
 
-Sensor -> System: reportObstacleState(front=true, left=true, right=true)
+Sensor -> System: reportObstacleState(frontObstacleDetected=true, leftObstacleDetected=true, rightObstacleDetected=true)
 activate System
 System -> Drive: stop()
 
 alt backward available
     System -> Drive: moveBackward()
     alt left side becomes available
-        Sensor -> System: reportObstacleState(left=false)
+        Sensor -> System: reportSideObstacleState(leftObstacleDetected=false, rightObstacleDetected=true)
         note right of System: Continue with UC-003
     else right side becomes available
-        Sensor -> System: reportObstacleState(right=false)
+        Sensor -> System: reportSideObstacleState(leftObstacleDetected=true, rightObstacleDetected=false)
         note right of System: Continue with UC-003
     end
 else backward unavailable and both sides blocked

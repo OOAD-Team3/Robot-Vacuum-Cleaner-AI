@@ -10,7 +10,7 @@ activate System
 System -> Cleaner: setCleaningPower(increased)
 
 alt obstacle detected during dust response
-    Sensor -> System: reportObstacleState(front=true)
+    Sensor -> System: reportFrontObstacleState(frontObstacleDetected=true)
     note right of System: Driving follows UC-002 or UC-005
     System -> Cleaner: keepCleaningPower(increased)
 end

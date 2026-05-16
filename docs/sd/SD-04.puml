@@ -1,0 +1,59 @@
+' SD-04. UC-004 방향 전환 후 청소 재개
+' Related Use Case: UC-004. 방향 전환 후 청소 재개
+' Intent: 방향 전환 완료 후 전방 이동 가능 여부를 확인하고 전진 청소 상태로 복귀하는 흐름을 표현한다.
+' Note: 먼지 대응 상태가 유지 중이면 증가 출력 상태를 일반 출력으로 덮어쓰지 않는다.
+
+@startuml SD_04_UC004_Resume_After_Turn
+title SD-04 - UC-004 방향 전환 후 청소 재개
+
+actor "센서 입력" as Sensor
+participant "RVC SW Controller" as Controller
+participant "SensorState" as SensorState
+participant "AutomaticCleaning" as Cleaning
+participant "DustResponse" as DustResponse
+participant "CleaningPolicy" as Policy
+participant "CleaningCommand" as CleaningCommand
+participant "MovementCommand" as MovementCommand
+actor "주행 장치" as Drive
+actor "청소 장치" as Cleaner
+
+Sensor -> Controller: reportFrontObstacleState(frontObstacleDetected=false)
+activate Controller
+Controller -> SensorState: updateFrontObstacle(frontObstacleDetected=false)
+Controller -> Cleaning: resumeAfterTurn(SensorState)
+activate Cleaning
+Cleaning -> SensorState: isFrontObstacleDetected()
+SensorState --> Cleaning: false
+Cleaning -> MovementCommand: create(MOVE_FORWARD)
+MovementCommand --> Cleaning: moveForwardCommand
+Cleaning -> Cleaning: changeMovementStatus(CLEANING)
+
+alt 먼지 대응 상태 유지 중
+    Cleaning -> DustResponse: isActive()
+    DustResponse --> Cleaning: true
+    Cleaning -> DustResponse: currentPowerLevel()
+    DustResponse --> Cleaning: INCREASED
+    Cleaning --> Controller: commandResult(moveForwardCommand, keepPower=INCREASED)
+    Controller -> Cleaner: keepCleaningPower(INCREASED)
+else 일반 청소 상태
+    Cleaning -> Policy: normalPowerLevel()
+    Policy --> Cleaning: NORMAL
+    Cleaning -> CleaningCommand: create(NORMAL)
+    CleaningCommand --> Cleaning: cleaningCommand
+    Cleaning --> Controller: commandResult(moveForwardCommand, cleaningCommand)
+    Controller -> Cleaner: setCleaningPower(NORMAL)
+end
+
+Controller -> Drive: moveForward()
+Cleaning --> Controller: resumed()
+
+alt 방향 전환 후 전방 장애물 재감지
+    Sensor -> Controller: reportObstacleState(frontObstacleDetected=true, leftObstacleDetected, rightObstacleDetected)
+    Controller -> SensorState: updateObstacles(frontObstacleDetected=true, leftObstacleDetected, rightObstacleDetected)
+    Controller -> Cleaning: selectAvoidanceDirection(SensorState)
+    note right of Cleaning: 좌우 장애물 상태를 포함해 UC-003을 다시 수행
+end
+
+deactivate Cleaning
+deactivate Controller
+@enduml

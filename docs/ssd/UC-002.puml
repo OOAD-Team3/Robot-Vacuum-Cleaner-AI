@@ -5,12 +5,12 @@ actor "Sensor Input" as Sensor
 participant "RVC SW Controller" as System
 actor "Driving Device" as Drive
 
-Sensor -> System: reportObstacleState(front=true)
+Sensor -> System: reportFrontObstacleState(frontObstacleDetected=true)
 activate System
 System -> Drive: stop()
 
 alt front, left, and right obstacles detected
-    Sensor -> System: reportObstacleState(front=true, left=true, right=true)
+    Sensor -> System: reportObstacleState(frontObstacleDetected=true, leftObstacleDetected=true, rightObstacleDetected=true)
     note right of System: Continue with UC-005
 else dust detected while stopped
     Sensor -> System: reportDustDetected()

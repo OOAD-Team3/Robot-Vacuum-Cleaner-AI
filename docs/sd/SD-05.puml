@@ -1,0 +1,66 @@
+' SD-05. UC-005 삼면 장애물 감지 후 후진
+' Related Use Case: UC-005. 삼면 장애물 감지 후 후진
+' Intent: 전방, 좌측, 우측이 모두 막힌 상태에서 정지 후 후진하고 다시 회피 방향 선택으로 넘기는 흐름을 표현한다.
+' Note: 후진 후 좌우 상태에 따라 회피 방향 선택 또는 정지 유지로 분기한다.
+
+@startuml SD_05_UC005_Backward_On_Three_Side_Obstacle
+title SD-05 - UC-005 삼면 장애물 감지 후 후진
+
+actor "센서 입력" as Sensor
+participant "RVC SW Controller" as Controller
+participant "SensorState" as SensorState
+participant "AutomaticCleaning" as Cleaning
+participant "AvoidanceDecision" as AvoidanceDecision
+participant "MovementCommand" as MovementCommand
+actor "주행 장치" as Drive
+
+Sensor -> Controller: reportObstacleState(frontObstacleDetected=true, leftObstacleDetected=true, rightObstacleDetected=true)
+activate Controller
+Controller -> SensorState: updateObstacles(frontObstacleDetected=true, leftObstacleDetected=true, rightObstacleDetected=true)
+Controller -> Cleaning: handleThreeSideObstacle(SensorState)
+activate Cleaning
+Cleaning -> SensorState: isThreeSideBlocked()
+SensorState --> Cleaning: true
+Cleaning -> Cleaning: changeMovementStatus(BLOCKED)
+Cleaning -> MovementCommand: create(STOP)
+MovementCommand --> Cleaning: stopCommand
+Cleaning -> AvoidanceDecision: evaluateBackwardRequired(SensorState)
+AvoidanceDecision --> Cleaning: backwardRequired=true
+Cleaning --> Controller: commandResult(stopCommand)
+Controller -> Drive: stop()
+
+alt 후진 가능
+    Cleaning -> MovementCommand: create(MOVE_BACKWARD)
+    MovementCommand --> Cleaning: backwardCommand
+    Cleaning --> Controller: commandResult(backwardCommand)
+    Controller -> Drive: moveBackward()
+    Drive --> Controller: backwardCompleted()
+    Sensor -> Controller: reportSideObstacleState(leftObstacleDetected, rightObstacleDetected)
+    Controller -> SensorState: updateSideObstacles(leftObstacleDetected, rightObstacleDetected)
+    alt 좌측만 이동 가능
+        Controller -> Cleaning: selectAvoidanceDirection(SensorState)
+        note right of Cleaning: UC-003에서 LEFT 선택
+    else 우측만 이동 가능
+        Controller -> Cleaning: selectAvoidanceDirection(SensorState)
+        note right of Cleaning: UC-003에서 RIGHT 선택
+    else 좌측과 우측 모두 이동 가능
+        Controller -> Cleaning: selectAvoidanceDirection(SensorState)
+        note right of Cleaning: UC-003에서 정책에 따라 선택
+    else 좌측과 우측 모두 계속 막힘
+        Controller -> Cleaning: handleThreeSideObstacle(SensorState)
+        note right of Cleaning: BLOCKED 상태 유지 또는 추가 후진 판단
+    end
+else 후진 불가 및 좌우 모두 막힘
+    Cleaning -> AvoidanceDecision: markNoAvailableDirection()
+    AvoidanceDecision --> Cleaning: availableDirection=false
+    Cleaning -> MovementCommand: create(STOP)
+    MovementCommand --> Cleaning: stopCommand
+    Cleaning -> Cleaning: changeMovementStatus(STOPPED)
+    Cleaning --> Controller: commandResult(stopCommand)
+    Controller -> Drive: stop()
+end
+
+Cleaning --> Controller: threeSideObstacleHandled()
+deactivate Cleaning
+deactivate Controller
+@enduml

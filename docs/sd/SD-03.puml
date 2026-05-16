@@ -28,29 +28,32 @@ alt 좌측만 막힘
     AvoidanceDecision --> Cleaning: selectedDirection=RIGHT
     Cleaning -> MovementCommand: create(TURN_RIGHT)
     MovementCommand --> Cleaning: turnRightCommand
-    Cleaning -> Drive: turnRight()
+    Cleaning --> Controller: commandResult(turnRightCommand)
+    Controller -> Drive: turnRight()
 else 우측만 막힘
     Cleaning -> AvoidanceDecision: select(LEFT)
     AvoidanceDecision --> Cleaning: selectedDirection=LEFT
     Cleaning -> MovementCommand: create(TURN_LEFT)
     MovementCommand --> Cleaning: turnLeftCommand
-    Cleaning -> Drive: turnLeft()
+    Cleaning --> Controller: commandResult(turnLeftCommand)
+    Controller -> Drive: turnLeft()
 else 좌측과 우측 모두 이동 가능
     Cleaning -> Policy: avoidanceDirectionPolicy()
-    Policy --> Cleaning: configuredPolicy
+    Policy --> Cleaning: configuredPolicy=LEFT_FIRST or RIGHT_FIRST
     Cleaning -> AvoidanceDecision: selectByPolicy(configuredPolicy)
     AvoidanceDecision --> Cleaning: selectedDirection
     Cleaning -> MovementCommand: createTurnCommand(selectedDirection)
     MovementCommand --> Cleaning: turnCommand
-    Cleaning -> Drive: turn(selectedDirection)
+    Cleaning --> Controller: commandResult(turnCommand)
+    Controller -> Drive: turn(selectedDirection)
 else 좌측과 우측 모두 막힘
     Cleaning -> AvoidanceDecision: markBackwardRequired()
     AvoidanceDecision --> Cleaning: backwardRequired=true
-    Cleaning -> Cleaning: changeStatus(BLOCKED)
+    Cleaning -> Cleaning: changeMovementStatus(BLOCKED)
+    Cleaning --> Controller: noAvailableDirection()
     note right of Cleaning: UC-005로 전환
 end
 
-Cleaning --> Controller: directionDecisionCompleted()
 deactivate Cleaning
 deactivate Controller
 @enduml

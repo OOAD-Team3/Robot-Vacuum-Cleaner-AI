@@ -1,6 +1,6 @@
 ' SD-02. UC-002 전방 장애물 감지 후 정지
 ' Related Use Case: UC-002. 전방 장애물 감지 후 정지
-' Intent: 전방 장애물 감지 시 주행을 정지하고 회피 방향 판단으로 넘기는 흐름을 표현한다.
+' Intent: 전방 장애물 감지 시 정지 명령을 생성하고 회피 방향 판단으로 넘기는 흐름을 표현한다.
 ' Note: 삼면 장애물은 UC-005로, 정지 중 먼지 감지는 UC-006 출력 처리로 이어진다.
 
 @startuml SD_02_UC002_Stop_On_Front_Obstacle
@@ -21,14 +21,15 @@ Controller -> Cleaning: handleSensorState(SensorState)
 activate Cleaning
 Cleaning -> SensorState: isFrontObstacleDetected()
 SensorState --> Cleaning: true
-Cleaning -> Cleaning: changeStatus(AVOIDING_OBSTACLE)
+Cleaning -> Cleaning: changeMovementStatus(AVOIDING_OBSTACLE)
 Cleaning -> MovementCommand: create(STOP)
 MovementCommand --> Cleaning: stopCommand
-Cleaning -> Drive: stop()
 Cleaning -> AvoidanceDecision: prepareDirectionDecision()
 AvoidanceDecision --> Cleaning: directionDecisionRequired
-Cleaning --> Controller: avoidanceRequired()
+Cleaning --> Controller: commandResult(stopCommand)
 deactivate Cleaning
+
+Controller -> Drive: stop()
 
 alt 전방, 좌측, 우측 장애물이 모두 감지됨
     Sensor -> Controller: reportObstacleState(frontObstacleDetected=true, leftObstacleDetected=true, rightObstacleDetected=true)

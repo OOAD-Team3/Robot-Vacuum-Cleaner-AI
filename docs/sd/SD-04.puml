@@ -26,30 +26,32 @@ Cleaning -> SensorState: isFrontObstacleDetected()
 SensorState --> Cleaning: false
 Cleaning -> MovementCommand: create(MOVE_FORWARD)
 MovementCommand --> Cleaning: moveForwardCommand
-Cleaning -> Drive: moveForward()
+Cleaning -> Cleaning: changeMovementStatus(CLEANING)
 
 alt 먼지 대응 상태 유지 중
     Cleaning -> DustResponse: isActive()
     DustResponse --> Cleaning: true
     Cleaning -> DustResponse: currentPowerLevel()
     DustResponse --> Cleaning: INCREASED
-    Cleaning -> Cleaner: keepCleaningPower(INCREASED)
+    Cleaning --> Controller: commandResult(moveForwardCommand, keepPower=INCREASED)
+    Controller -> Cleaner: keepCleaningPower(INCREASED)
 else 일반 청소 상태
     Cleaning -> Policy: normalPowerLevel()
     Policy --> Cleaning: NORMAL
     Cleaning -> CleaningCommand: create(NORMAL)
     CleaningCommand --> Cleaning: cleaningCommand
-    Cleaning -> Cleaner: setCleaningPower(NORMAL)
+    Cleaning --> Controller: commandResult(moveForwardCommand, cleaningCommand)
+    Controller -> Cleaner: setCleaningPower(NORMAL)
 end
 
-Cleaning -> Cleaning: changeStatus(CLEANING)
+Controller -> Drive: moveForward()
 Cleaning --> Controller: resumed()
 
 alt 방향 전환 후 전방 장애물 재감지
-    Sensor -> Controller: reportFrontObstacleState(frontObstacleDetected=true)
-    Controller -> SensorState: updateFrontObstacle(frontObstacleDetected=true)
+    Sensor -> Controller: reportObstacleState(frontObstacleDetected=true, leftObstacleDetected, rightObstacleDetected)
+    Controller -> SensorState: updateObstacles(frontObstacleDetected=true, leftObstacleDetected, rightObstacleDetected)
     Controller -> Cleaning: selectAvoidanceDirection(SensorState)
-    note right of Cleaning: UC-003을 다시 수행
+    note right of Cleaning: 좌우 장애물 상태를 포함해 UC-003을 다시 수행
 end
 
 deactivate Cleaning

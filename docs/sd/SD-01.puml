@@ -1,6 +1,6 @@
 ' SD-01. UC-001 장애물이 없을 때 직진 청소
 ' Related Use Case: UC-001. 장애물이 없을 때 직진 청소
-' Intent: 전방 장애물이 없을 때 일반 청소 출력과 전진 명령을 생성하는 내부 객체 협력을 표현한다.
+' Intent: 전방 장애물이 없을 때 일반 청소 출력과 전진 명령을 생성하고 Controller가 장치 호출을 수행하는 흐름을 표현한다.
 ' Note: 전방 장애물 또는 먼지 감지 시 각각 UC-002, UC-006으로 전환되는 대안 흐름을 포함한다.
 
 @startuml SD_01_UC001_Forward_Cleaning
@@ -27,13 +27,14 @@ Cleaning -> Policy: normalPowerLevel()
 Policy --> Cleaning: NORMAL
 Cleaning -> CleaningCommand: create(NORMAL)
 CleaningCommand --> Cleaning: cleaningCommand
-Cleaning -> Cleaner: setCleaningPower(NORMAL)
 Cleaning -> MovementCommand: create(MOVE_FORWARD)
 MovementCommand --> Cleaning: movementCommand
-Cleaning -> Drive: moveForward()
-Cleaning -> Cleaning: keepStatus(CLEANING)
-Cleaning --> Controller: decisionCompleted()
+Cleaning -> Cleaning: keepMovementStatus(CLEANING)
+Cleaning --> Controller: commandResult(cleaningCommand, movementCommand)
 deactivate Cleaning
+
+Controller -> Cleaner: setCleaningPower(NORMAL)
+Controller -> Drive: moveForward()
 
 alt 전방 장애물 감지
     Sensor -> Controller: reportFrontObstacleState(frontObstacleDetected=true)

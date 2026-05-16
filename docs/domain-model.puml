@@ -5,7 +5,7 @@ skinparam classAttributeIconSize 0
 hide methods
 
 class "Automatic Cleaning" as AutomaticCleaning {
-  status
+  movementStatus
 }
 
 class "Sensor State" as SensorState {
@@ -40,10 +40,9 @@ class "Cleaning Command" as CleaningCommand {
   powerLevel
 }
 
-enum "Automatic Cleaning Status" as AutomaticCleaningStatus {
+enum "Movement Status" as MovementStatus {
   CLEANING
   AVOIDING_OBSTACLE
-  DUST_RESPONSE
   BLOCKED
   STOPPED
 }
@@ -64,14 +63,13 @@ enum "Cleaning Power Level" as CleaningPowerLevel {
 enum "Avoidance Direction Policy" as AvoidanceDirectionPolicy {
   LEFT_FIRST
   RIGHT_FIRST
-  AVAILABLE_SIDE
 }
 
 AutomaticCleaning "1" --> "1" SensorState : reads
 AutomaticCleaning "1" --> "1" CleaningPolicy : uses
 AutomaticCleaning "1" --> "0..*" MovementCommand : issues
 AutomaticCleaning "1" --> "0..*" CleaningCommand : issues
-AutomaticCleaning "1" --> "1" AutomaticCleaningStatus : has
+AutomaticCleaning "1" --> "1" MovementStatus : has
 
 SensorState "1" --> "0..1" AvoidanceDecision : triggers
 SensorState "1" --> "0..1" DustResponse : triggers

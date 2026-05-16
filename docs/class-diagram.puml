@@ -47,26 +47,29 @@ package "Application Controller" as ApplicationController {
     +reportObstacleState(frontObstacleDetected: boolean, leftObstacleDetected: boolean, rightObstacleDetected: boolean)
     +reportDustDetected()
     +increasedPowerDurationExpired()
+    -executeMovementCommand(command: MovementCommand)
+    -executeCleaningCommand(command: CleaningCommand)
+    -startTimerIfNeeded(duration: Duration)
   }
 }
 
 package "Domain Model" as DomainModel {
   class "AutomaticCleaning" as AutomaticCleaning {
-    -status: AutomaticCleaningStatus
+    -movementStatus: MovementStatus
     -policy: CleaningPolicy
     -dustResponse: DustResponse
-    +handleSensorState(sensorState: SensorState)
+    +handleSensorState(sensorState: SensorState): CommandResult
     +selectAvoidanceDirection(sensorState: SensorState): AvoidanceDecision
-    +resumeAfterTurn(sensorState: SensorState)
-    +handleThreeSideObstacle(sensorState: SensorState)
-    +handleDustDetected(sensorState: SensorState)
-    +handleObstacleWhileDustResponse(sensorState: SensorState)
-    +handleDustResponseTimeout()
+    +resumeAfterTurn(sensorState: SensorState): CommandResult
+    +handleThreeSideObstacle(sensorState: SensorState): CommandResult
+    +handleDustDetected(sensorState: SensorState): CommandResult
+    +handleObstacleWhileDustResponse(sensorState: SensorState): CommandResult
+    +handleDustResponseTimeout(): CommandResult
     +markDustResponsePending()
     +clearDustResponseState()
     +keepCurrentMovementStatus()
-    +changeStatus(status: AutomaticCleaningStatus)
-    +keepStatus(status: AutomaticCleaningStatus)
+    +changeMovementStatus(status: MovementStatus)
+    +keepMovementStatus(status: MovementStatus)
   }
 
   class "SensorState" as SensorState {
@@ -127,6 +130,15 @@ package "Domain Model" as DomainModel {
     +create(powerLevel: CleaningPowerLevel): CleaningCommand
   }
 
+  class "CommandResult" as CommandResult {
+    -movementCommand: MovementCommand
+    -cleaningCommand: CleaningCommand
+    -timerDuration: Duration
+    +withMovement(command: MovementCommand): CommandResult
+    +withCleaning(command: CleaningCommand): CommandResult
+    +withTimer(duration: Duration): CommandResult
+  }
+
   class "SideObstacleState" as SideObstacleState {
     -leftBlocked: boolean
     -rightBlocked: boolean
@@ -134,10 +146,9 @@ package "Domain Model" as DomainModel {
 }
 
 package "Value Types" as ValueTypes {
-  enum "AutomaticCleaningStatus" as AutomaticCleaningStatus {
+  enum "MovementStatus" as MovementStatus {
     CLEANING
     AVOIDING_OBSTACLE
-    DUST_RESPONSE
     BLOCKED
     STOPPED
   }
@@ -158,7 +169,6 @@ package "Value Types" as ValueTypes {
   enum "AvoidanceDirectionPolicy" as AvoidanceDirectionPolicy {
     LEFT_FIRST
     RIGHT_FIRST
-    AVAILABLE_SIDE
   }
 
   enum "AvoidanceDirection" as AvoidanceDirection {
@@ -184,17 +194,18 @@ AutomaticCleaning *-- DustResponse
 AutomaticCleaning ..> AvoidanceDecision : creates/updates
 AutomaticCleaning ..> MovementCommand : creates
 AutomaticCleaning ..> CleaningCommand : creates
-AutomaticCleaning --> DrivingDevice : executes movement
-AutomaticCleaning --> CleaningDevice : executes cleaning
-AutomaticCleaning --> Time : starts dust timer
+AutomaticCleaning ..> CommandResult : returns
 
 SensorState --> SideObstacleState : returns
-AutomaticCleaning --> AutomaticCleaningStatus : has
+AutomaticCleaning --> MovementStatus : has
 CleaningPolicy --> AvoidanceDirectionPolicy : uses
 CleaningPolicy --> CleaningPowerLevel : defines
 CleaningPolicy --> Duration : defines
 AvoidanceDecision --> AvoidanceDirection : selects
 AvoidanceDecision --> SensorState : evaluates
+CommandResult --> MovementCommand : optional
+CommandResult --> CleaningCommand : optional
+CommandResult --> Duration : optional timer
 MovementCommand --> MovementCommandType : uses
 MovementCommand --> AvoidanceDirection : optional direction
 CleaningCommand --> CleaningPowerLevel : uses
@@ -204,13 +215,15 @@ DrivingDevice ..> AvoidanceDirection : turns by
 
 note right of RVCSWController
   Receives external events from SensorInput and Time,
-  updates SensorState, and delegates decisions to AutomaticCleaning.
+  updates SensorState, asks AutomaticCleaning for command results,
+  and executes device or timer calls.
 end note
 
 note bottom of AutomaticCleaning
   Central use-case coordinator derived from SD-01..SD-07.
-  It owns cleaning status, obstacle avoidance flow,
-  dust response flow, and command creation decisions.
+  It owns movement status, obstacle avoidance flow,
+  dust response state, and command creation decisions.
+  It does not call external devices directly.
 end note
 
 note bottom of ExternalInterfaces

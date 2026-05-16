@@ -1,7 +1,7 @@
 ' SD-06. UC-006 먼지 감지 이벤트 처리
 ' Related Use Case: UC-006. 먼지 감지 이벤트 처리
 ' Intent: 먼지 감지 시 증가 출력 수준과 유지 시간을 정책에서 조회하고 먼지 대응 상태를 시작하는 흐름을 표현한다.
-' Note: 장애물 회피가 동시에 발생해도 증가 출력 상태는 유지한다.
+' Note: 장애물 회피가 동시에 발생해도 주행 상태와 먼지 대응 상태는 별도로 유지한다.
 
 @startuml SD_06_UC006_Handle_Dust_Detected
 title SD-06 - UC-006 먼지 감지 이벤트 처리
@@ -23,7 +23,6 @@ Controller -> Cleaning: handleDustDetected(SensorState)
 activate Cleaning
 Cleaning -> SensorState: isDustDetected()
 SensorState --> Cleaning: true
-Cleaning -> Cleaning: changeStatus(DUST_RESPONSE)
 Cleaning -> Policy: increasedPowerLevel()
 Policy --> Cleaning: INCREASED
 Cleaning -> Policy: increasedPowerDuration()
@@ -32,9 +31,11 @@ Cleaning -> DustResponse: start(INCREASED, duration)
 DustResponse --> Cleaning: active=true
 Cleaning -> CleaningCommand: create(INCREASED)
 CleaningCommand --> Cleaning: increasedPowerCommand
-Cleaning -> Cleaner: setCleaningPower(INCREASED)
-Cleaning -> Time: startTimer(duration)
-Cleaning --> Controller: dustResponseStarted()
+Cleaning --> Controller: commandResult(increasedPowerCommand, timerDuration=duration)
+deactivate Cleaning
+
+Controller -> Cleaner: setCleaningPower(INCREASED)
+Controller -> Time: startTimer(duration)
 
 alt 먼지 대응 중 장애물 감지
     Sensor -> Controller: reportFrontObstacleState(frontObstacleDetected=true)
@@ -42,10 +43,10 @@ alt 먼지 대응 중 장애물 감지
     Controller -> Cleaning: handleObstacleWhileDustResponse(SensorState)
     Cleaning -> DustResponse: isActive()
     DustResponse --> Cleaning: true
-    Cleaning -> Cleaner: keepCleaningPower(INCREASED)
+    Cleaning --> Controller: keepPower(INCREASED)
+    Controller -> Cleaner: keepCleaningPower(INCREASED)
     note right of Cleaning: 주행 상태는 UC-002 또는 UC-005를 따름
 end
 
-deactivate Cleaning
 deactivate Controller
 @enduml

@@ -32,8 +32,8 @@ deactivate Cleaning
 Controller -> Drive: stop()
 
 alt 전방, 좌측, 우측 장애물이 모두 감지됨
-    Sensor -> Controller: reportObstacleState(frontObstacleDetected=true, leftObstacleDetected=true, rightObstacleDetected=true)
-    Controller -> SensorState: updateObstacles(frontObstacleDetected=true, leftObstacleDetected=true, rightObstacleDetected=true)
+    Sensor -> Controller: reportObstacleState(frontObstacleDetected=true, backObstacleDetected, leftObstacleDetected=true, rightObstacleDetected=true)
+    Controller -> SensorState: updateObstacles(frontObstacleDetected=true, backObstacleDetected, leftObstacleDetected=true, rightObstacleDetected=true)
     Controller -> Cleaning: handleThreeSideObstacle(SensorState)
     note right of Cleaning: UC-005로 전환
 else 정지 중 먼지 감지

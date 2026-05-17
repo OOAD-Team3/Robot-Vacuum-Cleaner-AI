@@ -45,7 +45,7 @@ else 좌측과 우측 모두 이동 가능
     Cleaning -> MovementCommand: createTurnCommand(selectedDirection)
     MovementCommand --> Cleaning: turnCommand
     Cleaning --> Controller: commandResult(turnCommand)
-    Controller -> Drive: turn(selectedDirection)
+    Controller -> Drive: turnLeft() or turnRight()
 else 좌측과 우측 모두 막힘
     Cleaning -> AvoidanceDecision: markBackwardRequired()
     AvoidanceDecision --> Cleaning: backwardRequired=true

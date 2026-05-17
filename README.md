@@ -7,6 +7,24 @@ Robot Vacuum Cleaner(RVC) SW Controller의 요구사항과 설계 문서, 코드
 ```text
 .
 ├── README.md
+├── CMakeLists.txt
+├── include
+│   └── rvc
+│       ├── AutomaticCleaning.hpp
+│       ├── CleaningPolicy.hpp
+│       ├── Commands.hpp
+│       ├── Devices.hpp
+│       ├── DustResponse.hpp
+│       ├── RVCSWController.hpp
+│       ├── SensorState.hpp
+│       └── Types.hpp
+├── src
+│   ├── AutomaticCleaning.cpp
+│   ├── CleaningPolicy.cpp
+│   ├── Commands.cpp
+│   ├── DustResponse.cpp
+│   ├── RVCSWController.cpp
+│   └── SensorState.cpp
 └── docs
     ├── requirements.md                              # 전체 범위, 요구사항, 제외 범위, 확장 후보
     ├── functional-and-non-functional-requirements.md # FR/NFR ID 기준 문서
@@ -43,3 +61,22 @@ Robot Vacuum Cleaner(RVC) SW Controller의 요구사항과 설계 문서, 코드
 | UC-005   | 삼면 장애물 감지 후 후진      | `docs/ssd/UC-005.puml` | `docs/sd/SD-05.puml` |
 | UC-006   | 먼지 감지 이벤트 처리         | `docs/ssd/UC-006.puml` | `docs/sd/SD-06.puml` |
 | UC-007   | 청소 출력 일반 상태 복귀      | `docs/ssd/UC-007.puml` | `docs/sd/SD-07.puml` |
+
+### Implementation
+
+The OOI implementation provides the RVC SW Controller as a C++17 library target named `rvc_controller`.
+
+- `RVCSWController` receives sensor and time events, updates `SensorState`, and executes device calls.
+- `AutomaticCleaning` owns the automatic cleaning, obstacle avoidance, and dust response decisions.
+- `DrivingDevice`, `CleaningDevice`, and `Time` are abstract interfaces for hardware/time dependencies.
+- `CommandResult`, `MovementCommand`, and `CleaningCommand` carry decisions from domain logic to the controller.
+- UC-005 uses `backObstacleDetected` to distinguish backward-available and backward-unavailable flows.
+
+### Build
+
+```sh
+cmake -S . -B build
+cmake --build build
+```
+
+Tests, system tests, simulator integration, and CI are planned as separate follow-up steps.

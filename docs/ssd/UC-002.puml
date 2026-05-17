@@ -10,7 +10,7 @@ activate System
 System -> Drive: stop()
 
 alt front, left, and right obstacles detected
-    Sensor -> System: reportObstacleState(frontObstacleDetected=true, leftObstacleDetected=true, rightObstacleDetected=true)
+    Sensor -> System: reportObstacleState(frontObstacleDetected=true, backObstacleDetected, leftObstacleDetected=true, rightObstacleDetected=true)
     note right of System: Continue with UC-005
 else dust detected while stopped
     Sensor -> System: reportDustDetected()

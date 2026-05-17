@@ -291,6 +291,18 @@ TEST_F(RVCSWControllerTest, UC005SelectsAvoidanceDirectionAfterBackwardBeforeRes
     EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
 }
 
+// 후진 후 전방 clear 단일 입력이 들어와도 바로 전진하지 않고 회피 방향 전환을 먼저 수행하는지 검증한다.
+TEST_F(RVCSWControllerTest, UC005FrontClearAfterBackwardSelectsAvoidanceDirectionBeforeForward) {
+    controller.reportObstacleState(true, false, true, true);
+    clearDeviceCalls();
+
+    controller.reportFrontObstacleState(false);
+
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"turnLeft"});
+    EXPECT_TRUE(cleaner.calls.empty());
+    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
+}
+
 // 전/좌/우 blocked 이후 후방 blocked 입력 시 stop만 호출되는 단계적 후진 불가 흐름을 검증한다.
 TEST_F(RVCSWControllerTest, UC005BackSensorBlockedCompletesPendingThreeSideObstacleFlowWithStop) {
     controller.reportObstacleState(true, true, true);

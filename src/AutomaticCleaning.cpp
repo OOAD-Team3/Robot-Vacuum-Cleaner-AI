@@ -44,6 +44,13 @@ AvoidanceDecision AutomaticCleaning::selectAvoidanceDirection(const SensorState&
     return decision;
 }
 
+AvoidanceDecision AutomaticCleaning::selectAvoidanceDirectionByPolicy() {
+    auto decision = AvoidanceDecision::prepareDirectionDecision();
+    decision.selectByPolicy(policy_.avoidanceDirectionPolicy());
+    movementStatus_ = MovementStatus::AvoidingObstacle;
+    return decision;
+}
+
 CommandResult AutomaticCleaning::resumeAfterTurn(const SensorState& sensorState) {
     if (sensorState.isFrontObstacleDetected()) {
         movementStatus_ = MovementStatus::AvoidingObstacle;

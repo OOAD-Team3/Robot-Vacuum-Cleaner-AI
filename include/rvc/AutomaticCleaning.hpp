@@ -14,6 +14,7 @@ public:
 
     CommandResult handleSensorState(const SensorState& sensorState);
     AvoidanceDecision selectAvoidanceDirection(const SensorState& sensorState);
+    AvoidanceDecision selectAvoidanceDirectionByPolicy();
     CommandResult resumeAfterTurn(const SensorState& sensorState);
     CommandResult handleThreeSideObstacle(const SensorState& sensorState);
     CommandResult handleDustDetected(const SensorState& sensorState);

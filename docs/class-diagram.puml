@@ -65,6 +65,7 @@ package "Domain Model" as DomainModel {
     -dustResponsePending: boolean
     +handleSensorState(sensorState: SensorState): CommandResult
     +selectAvoidanceDirection(sensorState: SensorState): AvoidanceDecision
+    +selectAvoidanceDirectionByPolicy(): AvoidanceDecision
     +resumeAfterTurn(sensorState: SensorState): CommandResult
     +handleThreeSideObstacle(sensorState: SensorState): CommandResult
     +handleDustDetected(sensorState: SensorState): CommandResult

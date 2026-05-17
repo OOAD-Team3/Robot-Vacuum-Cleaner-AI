@@ -24,6 +24,14 @@ void RVCSWController::reportFrontObstacleState(bool frontObstacleDetected) {
         return;
     }
 
+    if (!frontObstacleDetected && automaticCleaning_.movementStatus() == MovementStatus::Blocked) {
+        const auto decision = automaticCleaning_.selectAvoidanceDirectionByPolicy();
+        if (decision.hasSelectedDirection()) {
+            apply(CommandResult::none().withMovement(MovementCommand::createTurnCommand(*decision.selectedDirection())));
+        }
+        return;
+    }
+
     if (automaticCleaning_.isDustResponseActive()) {
         apply(automaticCleaning_.handleObstacleWhileDustResponse(sensorState_));
         return;

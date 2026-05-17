@@ -23,18 +23,14 @@ target_include_directories(rvc_controller
 )
 
 if(BUILD_TESTING)
-    find_package(GTest QUIET)
-
-    if(NOT GTest_FOUND)
-        include(FetchContent)
-        FetchContent_Declare(
-            googletest
-            URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
-            DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-        )
-        set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-        FetchContent_MakeAvailable(googletest)
-    endif()
+    include(FetchContent)
+    FetchContent_Declare(
+        googletest
+        URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    )
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(googletest)
 
     add_executable(rvc_controller_tests
         tests/RVCSWControllerTest.cpp

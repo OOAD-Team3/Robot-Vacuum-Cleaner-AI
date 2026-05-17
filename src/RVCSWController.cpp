@@ -111,6 +111,14 @@ void RVCSWController::reportObstacleState(
         return;
     }
 
+    if (automaticCleaning_.movementStatus() == MovementStatus::Blocked) {
+        const auto decision = automaticCleaning_.selectAvoidanceDirection(sensorState_);
+        if (decision.hasSelectedDirection()) {
+            apply(CommandResult::none().withMovement(MovementCommand::createTurnCommand(*decision.selectedDirection())));
+        }
+        return;
+    }
+
     if (automaticCleaning_.isDustResponseActive()) {
         apply(automaticCleaning_.handleObstacleWhileDustResponse(sensorState_));
         return;
@@ -167,6 +175,14 @@ void RVCSWController::reportObstacleState(
     if (automaticCleaning_.movementStatus() == MovementStatus::AvoidingObstacle) {
         apply(automaticCleaning_.resumeAfterTurn(sensorState_));
         applyPendingDustResponseIfCleaning();
+        return;
+    }
+
+    if (automaticCleaning_.movementStatus() == MovementStatus::Blocked) {
+        const auto decision = automaticCleaning_.selectAvoidanceDirection(sensorState_);
+        if (decision.hasSelectedDirection()) {
+            apply(CommandResult::none().withMovement(MovementCommand::createTurnCommand(*decision.selectedDirection())));
+        }
         return;
     }
 

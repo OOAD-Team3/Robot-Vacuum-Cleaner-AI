@@ -34,6 +34,8 @@ public:
 
 private:
     void apply(CommandResult result);
+    void applyInitialDustResponse(CommandResult result);
+    void applyPendingDustResponseIfCleaning();
     void executeMovementCommand(const MovementCommand& command);
     void executeCleaningCommand(const CleaningCommand& command);
     void startTimerIfNeeded(const std::optional<Duration>& duration);

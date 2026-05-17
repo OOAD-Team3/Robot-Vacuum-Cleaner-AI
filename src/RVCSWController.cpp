@@ -20,6 +20,7 @@ void RVCSWController::reportFrontObstacleState(bool frontObstacleDetected) {
 
     if (!frontObstacleDetected && automaticCleaning_.movementStatus() == MovementStatus::AvoidingObstacle) {
         apply(automaticCleaning_.resumeAfterTurn(sensorState_));
+        applyPendingDustResponseIfCleaning();
         return;
     }
 
@@ -29,18 +30,29 @@ void RVCSWController::reportFrontObstacleState(bool frontObstacleDetected) {
     }
 
     apply(automaticCleaning_.handleSensorState(sensorState_));
+    applyPendingDustResponseIfCleaning();
 }
 
 void RVCSWController::reportBackObstacleState(bool backObstacleDetected) {
     sensorState_.updateBackObstacle(backObstacleDetected);
 
     if (sensorState_.isThreeSideBlocked()) {
+        if (automaticCleaning_.isDustResponseActive()) {
+            apply(automaticCleaning_.handleObstacleWhileDustResponse(sensorState_));
+            return;
+        }
+
         apply(automaticCleaning_.handleThreeSideObstacle(sensorState_));
     }
 }
 
 void RVCSWController::reportSideObstacleState(bool leftObstacleDetected, bool rightObstacleDetected) {
     sensorState_.updateSideObstacles(leftObstacleDetected, rightObstacleDetected);
+
+    if (automaticCleaning_.movementStatus() != MovementStatus::AvoidingObstacle &&
+        automaticCleaning_.movementStatus() != MovementStatus::Blocked) {
+        return;
+    }
 
     const auto decision = automaticCleaning_.selectAvoidanceDirection(sensorState_);
     if (decision.backwardRequired()) {
@@ -61,10 +73,29 @@ void RVCSWController::reportObstacleState(
     sensorState_.updateObstacles(frontObstacleDetected, leftObstacleDetected, rightObstacleDetected);
 
     if (sensorState_.isThreeSideBlocked()) {
+        if (automaticCleaning_.isDustResponseActive()) {
+            apply(automaticCleaning_.handleObstacleWhileDustResponse(sensorState_));
+            return;
+        }
+
+        apply(automaticCleaning_.handleThreeSideObstacle(sensorState_));
         return;
     }
 
     if (sensorState_.isFrontObstacleDetected()) {
+        if (automaticCleaning_.movementStatus() == MovementStatus::AvoidingObstacle) {
+            const auto decision = automaticCleaning_.selectAvoidanceDirection(sensorState_);
+            if (decision.backwardRequired()) {
+                apply(automaticCleaning_.handleThreeSideObstacle(sensorState_));
+                return;
+            }
+
+            if (decision.hasSelectedDirection()) {
+                apply(CommandResult::none().withMovement(MovementCommand::createTurnCommand(*decision.selectedDirection())));
+                return;
+            }
+        }
+
         if (automaticCleaning_.isDustResponseActive()) {
             apply(automaticCleaning_.handleObstacleWhileDustResponse(sensorState_));
             return;
@@ -76,6 +107,7 @@ void RVCSWController::reportObstacleState(
 
     if (automaticCleaning_.movementStatus() == MovementStatus::AvoidingObstacle) {
         apply(automaticCleaning_.resumeAfterTurn(sensorState_));
+        applyPendingDustResponseIfCleaning();
         return;
     }
 
@@ -85,6 +117,7 @@ void RVCSWController::reportObstacleState(
     }
 
     apply(automaticCleaning_.handleSensorState(sensorState_));
+    applyPendingDustResponseIfCleaning();
 }
 
 void RVCSWController::reportObstacleState(
@@ -109,6 +142,19 @@ void RVCSWController::reportObstacleState(
     }
 
     if (sensorState_.isFrontObstacleDetected()) {
+        if (automaticCleaning_.movementStatus() == MovementStatus::AvoidingObstacle) {
+            const auto decision = automaticCleaning_.selectAvoidanceDirection(sensorState_);
+            if (decision.backwardRequired()) {
+                apply(automaticCleaning_.handleThreeSideObstacle(sensorState_));
+                return;
+            }
+
+            if (decision.hasSelectedDirection()) {
+                apply(CommandResult::none().withMovement(MovementCommand::createTurnCommand(*decision.selectedDirection())));
+                return;
+            }
+        }
+
         if (automaticCleaning_.isDustResponseActive()) {
             apply(automaticCleaning_.handleObstacleWhileDustResponse(sensorState_));
             return;
@@ -120,6 +166,7 @@ void RVCSWController::reportObstacleState(
 
     if (automaticCleaning_.movementStatus() == MovementStatus::AvoidingObstacle) {
         apply(automaticCleaning_.resumeAfterTurn(sensorState_));
+        applyPendingDustResponseIfCleaning();
         return;
     }
 
@@ -129,21 +176,18 @@ void RVCSWController::reportObstacleState(
     }
 
     apply(automaticCleaning_.handleSensorState(sensorState_));
+    applyPendingDustResponseIfCleaning();
 }
 
 void RVCSWController::reportDustDetected() {
     sensorState_.updateDustDetected(true);
-    const auto result = automaticCleaning_.handleDustDetected(sensorState_);
 
-    for (const auto& command : result.movementCommands()) {
-        executeMovementCommand(command);
+    if (automaticCleaning_.movementStatus() != MovementStatus::Cleaning) {
+        automaticCleaning_.markDustResponsePending();
+        return;
     }
 
-    if (result.cleaningCommand()) {
-        cleaningDevice_.setCleaningPower(result.cleaningCommand()->powerLevel());
-    }
-
-    startTimerIfNeeded(result.timerDuration());
+    applyInitialDustResponse(automaticCleaning_.handleDustDetected(sensorState_));
 }
 
 void RVCSWController::increasedPowerDurationExpired() {
@@ -159,15 +203,36 @@ MovementStatus RVCSWController::movementStatus() const {
 }
 
 void RVCSWController::apply(CommandResult result) {
+    if (result.cleaningCommand()) {
+        executeCleaningCommand(*result.cleaningCommand());
+    }
+
+    for (const auto& command : result.movementCommands()) {
+        executeMovementCommand(command);
+    }
+
+    startTimerIfNeeded(result.timerDuration());
+}
+
+void RVCSWController::applyInitialDustResponse(CommandResult result) {
     for (const auto& command : result.movementCommands()) {
         executeMovementCommand(command);
     }
 
     if (result.cleaningCommand()) {
-        executeCleaningCommand(*result.cleaningCommand());
+        cleaningDevice_.setCleaningPower(result.cleaningCommand()->powerLevel());
     }
 
     startTimerIfNeeded(result.timerDuration());
+}
+
+void RVCSWController::applyPendingDustResponseIfCleaning() {
+    if (!automaticCleaning_.isDustResponsePending() ||
+        automaticCleaning_.movementStatus() != MovementStatus::Cleaning) {
+        return;
+    }
+
+    applyInitialDustResponse(automaticCleaning_.handleDustDetected(sensorState_));
 }
 
 void RVCSWController::executeMovementCommand(const MovementCommand& command) {

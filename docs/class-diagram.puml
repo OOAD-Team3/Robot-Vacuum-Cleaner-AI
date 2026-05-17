@@ -48,6 +48,7 @@ package "Application Controller" as ApplicationController {
     +reportBackObstacleState(backObstacleDetected: boolean)
     +reportSideObstacleState(leftObstacleDetected: boolean, rightObstacleDetected: boolean)
     +reportObstacleState(frontObstacleDetected: boolean, leftObstacleDetected: boolean, rightObstacleDetected: boolean)
+    +reportObstacleState(frontObstacleDetected: boolean, backObstacleDetected: boolean, leftObstacleDetected: boolean, rightObstacleDetected: boolean)
     +reportDustDetected()
     +increasedPowerDurationExpired()
     -executeMovementCommand(command: MovementCommand)
@@ -61,6 +62,7 @@ package "Domain Model" as DomainModel {
     -movementStatus: MovementStatus
     -policy: CleaningPolicy
     -dustResponse: DustResponse
+    -dustResponsePending: boolean
     +handleSensorState(sensorState: SensorState): CommandResult
     +selectAvoidanceDirection(sensorState: SensorState): AvoidanceDecision
     +resumeAfterTurn(sensorState: SensorState): CommandResult
@@ -70,6 +72,8 @@ package "Domain Model" as DomainModel {
     +handleDustResponseTimeout(): CommandResult
     +markDustResponsePending()
     +clearDustResponseState()
+    +isDustResponseActive(): boolean
+    +isDustResponsePending(): boolean
     +keepCurrentMovementStatus()
     +changeMovementStatus(status: MovementStatus)
     +keepMovementStatus(status: MovementStatus)
@@ -89,6 +93,7 @@ package "Domain Model" as DomainModel {
     +updateDustDetected(dustDetected: boolean)
     +isFrontObstacleDetected(): boolean
     +isBackObstacleDetected(): boolean
+    +isBackObstacleStateKnown(): boolean
     +isDustDetected(): boolean
     +isThreeSideBlocked(): boolean
     +canMoveBackward(): boolean
@@ -139,7 +144,8 @@ package "Domain Model" as DomainModel {
   }
 
   class "CommandResult" as CommandResult {
-    -movementCommand: MovementCommand
+    -movementCommands: List<MovementCommand>
+    -lastMovementCommand: MovementCommand
     -cleaningCommand: CleaningCommand
     -timerDuration: Duration
     +withMovement(command: MovementCommand): CommandResult
@@ -211,7 +217,7 @@ CleaningPolicy --> CleaningPowerLevel : defines
 CleaningPolicy --> Duration : defines
 AvoidanceDecision --> AvoidanceDirection : selects
 AvoidanceDecision --> SensorState : evaluates
-CommandResult --> MovementCommand : optional
+CommandResult --> MovementCommand : ordered movement commands
 CommandResult --> CleaningCommand : optional
 CommandResult --> Duration : optional timer
 MovementCommand --> MovementCommandType : uses

@@ -10,7 +10,6 @@ actor "센서 입력" as Sensor
 participant "RVC SW Controller" as Controller
 participant "SensorState" as SensorState
 participant "AutomaticCleaning" as Cleaning
-participant "AvoidanceDecision" as AvoidanceDecision
 participant "MovementCommand" as MovementCommand
 actor "주행 장치" as Drive
 
@@ -25,8 +24,6 @@ alt 후진 가능
     Cleaning -> Cleaning: changeMovementStatus(BLOCKED)
     Cleaning -> MovementCommand: create(STOP)
     MovementCommand --> Cleaning: stopCommand
-    Cleaning -> AvoidanceDecision: evaluateBackwardRequired(SensorState)
-    AvoidanceDecision --> Cleaning: backwardRequired=true
     Cleaning --> Controller: commandResult(stopCommand)
     Controller -> Drive: stop()
     Cleaning -> SensorState: canMoveBackward()
@@ -61,8 +58,6 @@ else 후진 불가 및 좌우 모두 막힘
     SensorState --> Cleaning: true
     Cleaning -> SensorState: canMoveBackward()
     SensorState --> Cleaning: false
-    Cleaning -> AvoidanceDecision: markNoAvailableDirection()
-    AvoidanceDecision --> Cleaning: availableDirection=false
     Cleaning -> MovementCommand: create(STOP)
     MovementCommand --> Cleaning: stopCommand
     Cleaning -> Cleaning: changeMovementStatus(STOPPED)

@@ -63,7 +63,11 @@ bool SensorState::isFrontObstacleDetected() const {
 }
 
 bool SensorState::isBackObstacleDetected() const {
-    return backObstacleDetected_;
+    return backObstacleDetected_.value_or(false);
+}
+
+bool SensorState::isBackObstacleStateKnown() const {
+    return backObstacleDetected_.has_value();
 }
 
 bool SensorState::isDustDetected() const {
@@ -75,7 +79,7 @@ bool SensorState::isThreeSideBlocked() const {
 }
 
 bool SensorState::canMoveBackward() const {
-    return !backObstacleDetected_;
+    return backObstacleDetected_.has_value() && !*backObstacleDetected_;
 }
 
 SideObstacleState SensorState::sideObstacleState() const {

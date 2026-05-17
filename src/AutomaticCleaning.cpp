@@ -60,6 +60,11 @@ CommandResult AutomaticCleaning::handleThreeSideObstacle(const SensorState& sens
         return CommandResult::none();
     }
 
+    if (!sensorState.isBackObstacleStateKnown()) {
+        movementStatus_ = MovementStatus::Blocked;
+        return CommandResult::none().withMovement(MovementCommand::create(MovementCommandType::Stop));
+    }
+
     if (!sensorState.canMoveBackward()) {
         movementStatus_ = MovementStatus::Stopped;
         return CommandResult::none().withMovement(MovementCommand::create(MovementCommandType::Stop));
@@ -137,7 +142,11 @@ MovementStatus AutomaticCleaning::movementStatus() const {
 }
 
 bool AutomaticCleaning::isDustResponseActive() const {
-    return dustResponse_.isActive() || dustResponsePending_;
+    return dustResponse_.isActive();
+}
+
+bool AutomaticCleaning::isDustResponsePending() const {
+    return dustResponsePending_;
 }
 
 CommandResult AutomaticCleaning::normalCleaningResult() {

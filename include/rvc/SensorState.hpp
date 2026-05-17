@@ -1,5 +1,7 @@
 #pragma once
 
+#include <optional>
+
 namespace rvc {
 
 class SideObstacleState {
@@ -31,6 +33,7 @@ public:
 
     bool isFrontObstacleDetected() const;
     bool isBackObstacleDetected() const;
+    bool isBackObstacleStateKnown() const;
     bool isDustDetected() const;
     bool isThreeSideBlocked() const;
     bool canMoveBackward() const;
@@ -38,7 +41,7 @@ public:
 
 private:
     bool frontObstacleDetected_{false};
-    bool backObstacleDetected_{false};
+    std::optional<bool> backObstacleDetected_;
     bool leftObstacleDetected_{false};
     bool rightObstacleDetected_{false};
     bool dustDetected_{false};

@@ -13,31 +13,49 @@ namespace {
 
 class DrivingDeviceStub : public rvc::DrivingDevice {
 public:
-    void moveForward() override { calls.push_back("moveForward"); }
-    void moveBackward() override { calls.push_back("moveBackward"); }
-    void turnLeft() override { calls.push_back("turnLeft"); }
-    void turnRight() override { calls.push_back("turnRight"); }
+    void moveForward() override { record("moveForward"); }
+    void moveBackward() override { record("moveBackward"); }
+    void turnLeft() override { record("turnLeft"); }
+    void turnRight() override { record("turnRight"); }
 
     void turn(rvc::AvoidanceDirection direction) override {
-        calls.push_back(direction == rvc::AvoidanceDirection::Left ? "turnLeft" : "turnRight");
+        record(direction == rvc::AvoidanceDirection::Left ? "turnLeft" : "turnRight");
     }
 
-    void stop() override { calls.push_back("stop"); }
+    void stop() override { record("stop"); }
 
     std::vector<std::string> calls;
+    std::vector<std::string>* orderedCalls{nullptr};
+
+private:
+    void record(const std::string& call) {
+        calls.push_back(call);
+        if (orderedCalls) {
+            orderedCalls->push_back(call);
+        }
+    }
 };
 
 class CleaningDeviceStub : public rvc::CleaningDevice {
 public:
     void setCleaningPower(rvc::CleaningPowerLevel powerLevel) override {
-        calls.push_back(powerLevel == rvc::CleaningPowerLevel::Normal ? "setNormal" : "setIncreased");
+        record(powerLevel == rvc::CleaningPowerLevel::Normal ? "setNormal" : "setIncreased");
     }
 
     void keepCleaningPower(rvc::CleaningPowerLevel powerLevel) override {
-        calls.push_back(powerLevel == rvc::CleaningPowerLevel::Normal ? "keepNormal" : "keepIncreased");
+        record(powerLevel == rvc::CleaningPowerLevel::Normal ? "keepNormal" : "keepIncreased");
     }
 
     std::vector<std::string> calls;
+    std::vector<std::string>* orderedCalls{nullptr};
+
+private:
+    void record(const std::string& call) {
+        calls.push_back(call);
+        if (orderedCalls) {
+            orderedCalls->push_back(call);
+        }
+    }
 };
 
 class TimeStub : public rvc::Time {
@@ -81,6 +99,21 @@ TEST_F(RVCSWControllerTest, UC001MovesForwardAndStartsNormalCleaningWhenFrontIsC
     EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Cleaning);
 }
 
+// 전방 clear 입력 시 setNormal이 moveForward보다 먼저 호출되어 문서의 UC-001 호출 순서를 검증한다.
+TEST(RVCSWControllerOrderTest, UC001AppliesCleaningCommandBeforeMovementCommand) {
+    std::vector<std::string> orderedCalls;
+    DrivingDeviceStub drive;
+    CleaningDeviceStub cleaner;
+    TimeStub time;
+    drive.orderedCalls = &orderedCalls;
+    cleaner.orderedCalls = &orderedCalls;
+    rvc::RVCSWController controller{drive, cleaner, time};
+
+    controller.reportFrontObstacleState(false);
+
+    EXPECT_EQ(orderedCalls, (std::vector<std::string>{"setNormal", "moveForward"}));
+}
+
 // 전방 blocked 입력 시 stop만 호출되고 AvoidingObstacle 상태가 되어 UC-002 안전 정지를 검증한다.
 TEST_F(RVCSWControllerTest, UC002StopsWhenFrontObstacleIsDetected) {
     controller.reportFrontObstacleState(true);
@@ -101,6 +134,9 @@ TEST_F(RVCSWControllerTest, UC002CombinedObstacleSnapshotStopsOnFrontObstacle) {
 
 // 좌측 blocked/우측 open 입력 시 turnRight가 호출되어 UC-003 회전 방향을 검증한다.
 TEST_F(RVCSWControllerTest, UC003TurnsRightWhenLeftSideIsBlocked) {
+    controller.reportFrontObstacleState(true);
+    clearDeviceCalls();
+
     controller.reportSideObstacleState(true, false);
 
     EXPECT_EQ(drive.calls, std::vector<std::string>{"turnRight"});
@@ -109,6 +145,9 @@ TEST_F(RVCSWControllerTest, UC003TurnsRightWhenLeftSideIsBlocked) {
 
 // 우측 blocked/좌측 open 입력 시 turnLeft가 호출되어 UC-003 대칭 회전 방향을 검증한다.
 TEST_F(RVCSWControllerTest, UC003TurnsLeftWhenRightSideIsBlocked) {
+    controller.reportFrontObstacleState(true);
+    clearDeviceCalls();
+
     controller.reportSideObstacleState(false, true);
 
     EXPECT_EQ(drive.calls, std::vector<std::string>{"turnLeft"});
@@ -117,6 +156,9 @@ TEST_F(RVCSWControllerTest, UC003TurnsLeftWhenRightSideIsBlocked) {
 
 // 양측 open 입력 시 기본 LeftFirst 정책에 따라 turnLeft가 호출되는지 검증한다.
 TEST_F(RVCSWControllerTest, UC003TurnsLeftByDefaultWhenBothSidesAreOpen) {
+    controller.reportFrontObstacleState(true);
+    clearDeviceCalls();
+
     controller.reportSideObstacleState(false, false);
 
     EXPECT_EQ(drive.calls, std::vector<std::string>{"turnLeft"});
@@ -134,6 +176,9 @@ TEST(RVCSWControllerPolicyTest, UC003TurnsRightWhenInjectedPolicyIsRightFirst) {
         rvc::Duration::seconds(5)};
     rvc::RVCSWController controller{drive, cleaner, time, rvc::AutomaticCleaning{policy}};
 
+    controller.reportFrontObstacleState(true);
+    drive.calls.clear();
+
     controller.reportSideObstacleState(false, false);
 
     EXPECT_EQ(drive.calls, std::vector<std::string>{"turnRight"});
@@ -141,11 +186,37 @@ TEST(RVCSWControllerPolicyTest, UC003TurnsRightWhenInjectedPolicyIsRightFirst) {
 
 // 양측 blocked/후방 unknown 입력 시 구동 호출 없이 Blocked 상태가 되어 UC-005 대기 흐름을 검증한다.
 TEST_F(RVCSWControllerTest, UC003BothSidesBlockedDoesNotMoveBeforeBackStateIsKnown) {
+    controller.reportFrontObstacleState(true);
+    clearDeviceCalls();
+
     controller.reportSideObstacleState(true, true);
 
     EXPECT_TRUE(drive.calls.empty());
     EXPECT_TRUE(cleaner.calls.empty());
     EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Blocked);
+}
+
+// 일반 주행 상태에서 side sensor만 입력되면 회피 회전이 발생하지 않는지 검증한다.
+TEST_F(RVCSWControllerTest, SideObstacleReportDoesNotTurnDuringNormalCleaning) {
+    controller.reportFrontObstacleState(false);
+    clearDeviceCalls();
+
+    controller.reportSideObstacleState(true, false);
+
+    EXPECT_TRUE(drive.calls.empty());
+    EXPECT_TRUE(cleaner.calls.empty());
+    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Cleaning);
+}
+
+// 회피 상태에서 전방 blocked와 좌우 상태가 함께 들어오면 stop 반복 대신 회피 방향을 재선택하는지 검증한다.
+TEST_F(RVCSWControllerTest, AvoidingObstacleSnapshotWithSideStateSelectsAvoidanceDirection) {
+    controller.reportFrontObstacleState(true);
+    clearDeviceCalls();
+
+    controller.reportObstacleState(true, true, false);
+
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"turnRight"});
+    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
 }
 
 // 회피 상태에서 전방 clear 입력 시 normal 설정 후 moveForward가 호출되어 UC-004 재개 흐름을 검증한다.
@@ -192,8 +263,9 @@ TEST_F(RVCSWControllerTest, UC005StopsWhenThreeSidesAndBackAreBlocked) {
 TEST_F(RVCSWControllerTest, UC005ThreeDirectionSnapshotWaitsForBackSensorBeforeMoving) {
     controller.reportObstacleState(true, true, true);
 
-    EXPECT_TRUE(drive.calls.empty());
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"stop"});
     EXPECT_TRUE(cleaner.calls.empty());
+    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Blocked);
 }
 
 // 전/좌/우 blocked 이후 후방 clear 입력 시 stop 후 moveBackward가 호출되는 단계적 UC-005 흐름을 검증한다.
@@ -203,7 +275,7 @@ TEST_F(RVCSWControllerTest, UC005BackSensorClearCompletesPendingThreeSideObstacl
 
     controller.reportBackObstacleState(false);
 
-    EXPECT_EQ(drive.calls, (std::vector<std::string>{"stop", "moveBackward"}));
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"moveBackward"});
     EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Blocked);
 }
 
@@ -228,6 +300,9 @@ TEST_F(RVCSWControllerTest, BackSensorAloneDoesNotTriggerMovement) {
 
 // 먼지 감지 입력 시 setIncreased 후 타이머가 시작되어 UC-006 활성화를 검증한다.
 TEST_F(RVCSWControllerTest, UC006IncreasesCleaningPowerAndStartsTimerWhenDustDetected) {
+    controller.reportFrontObstacleState(false);
+    clearDeviceCalls();
+
     controller.reportDustDetected();
 
     EXPECT_EQ(cleaner.calls, std::vector<std::string>{"setIncreased"});
@@ -246,6 +321,10 @@ TEST(RVCSWControllerPolicyTest, UC006UsesInjectedDustResponseDuration) {
         rvc::Duration::milliseconds(1234)};
     rvc::RVCSWController controller{drive, cleaner, time, rvc::AutomaticCleaning{policy}};
 
+    controller.reportFrontObstacleState(false);
+    drive.calls.clear();
+    cleaner.calls.clear();
+
     controller.reportDustDetected();
 
     EXPECT_EQ(cleaner.calls, std::vector<std::string>{"setIncreased"});
@@ -254,6 +333,9 @@ TEST(RVCSWControllerPolicyTest, UC006UsesInjectedDustResponseDuration) {
 
 // 먼지 응답 중 전방 blocked 입력 시 stop과 keepIncreased가 호출되어 UC-006 중단 분기를 검증한다.
 TEST_F(RVCSWControllerTest, UC006KeepsIncreasedPowerWhenObstacleDetectedDuringDustResponse) {
+    controller.reportFrontObstacleState(false);
+    clearDeviceCalls();
+
     controller.reportDustDetected();
     clearDeviceCalls();
 
@@ -263,8 +345,26 @@ TEST_F(RVCSWControllerTest, UC006KeepsIncreasedPowerWhenObstacleDetectedDuringDu
     EXPECT_EQ(cleaner.calls, std::vector<std::string>{"keepIncreased"});
 }
 
+// 먼지 응답 중 단계적 UC-005 후방 clear 입력 시 increased를 유지하면서 후진하는지 검증한다.
+TEST_F(RVCSWControllerTest, UC006KeepsIncreasedPowerWhenBackSensorCompletesThreeSideFlow) {
+    controller.reportFrontObstacleState(false);
+    clearDeviceCalls();
+
+    controller.reportDustDetected();
+    controller.reportObstacleState(true, true, true);
+    clearDeviceCalls();
+
+    controller.reportBackObstacleState(false);
+
+    EXPECT_EQ(cleaner.calls, std::vector<std::string>{"keepIncreased"});
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"moveBackward"});
+}
+
 // 먼지 응답 중 전방 clear 입력 시 keepIncreased 후 moveForward가 호출되어 지속 청소 분기를 검증한다.
 TEST_F(RVCSWControllerTest, UC006KeepsIncreasedPowerWhileContinuingForwardCleaning) {
+    controller.reportFrontObstacleState(false);
+    clearDeviceCalls();
+
     controller.reportDustDetected();
     clearDeviceCalls();
 
@@ -276,7 +376,28 @@ TEST_F(RVCSWControllerTest, UC006KeepsIncreasedPowerWhileContinuingForwardCleani
 }
 
 // 먼지 응답 중 timeout 입력 시 setNormal이 호출되어 UC-007 전원 복귀를 검증한다.
+// 회피 중 먼지 감지 입력은 즉시 출력 증가하지 않고 청소 재개 시 UC-006으로 처리되는지 검증한다.
+TEST_F(RVCSWControllerTest, UC006DefersDustResponseDuringAvoidanceUntilCleaningResumes) {
+    controller.reportFrontObstacleState(true);
+    clearDeviceCalls();
+
+    controller.reportDustDetected();
+
+    EXPECT_TRUE(cleaner.calls.empty());
+    EXPECT_TRUE(time.startedDurations.empty());
+
+    controller.reportFrontObstacleState(false);
+
+    EXPECT_EQ(cleaner.calls, (std::vector<std::string>{"setNormal", "setIncreased"}));
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"moveForward"});
+    ASSERT_EQ(time.startedDurations.size(), 1U);
+    EXPECT_GT(time.startedDurations.front(), 0);
+}
+
 TEST_F(RVCSWControllerTest, UC007ReturnsCleaningPowerToNormalWhenTimerExpires) {
+    controller.reportFrontObstacleState(false);
+    clearDeviceCalls();
+
     controller.reportDustDetected();
     cleaner.calls.clear();
 
@@ -296,6 +417,9 @@ TEST_F(RVCSWControllerTest, UC007TimeoutWithoutActiveDustResponseDoesNothing) {
 
 // 먼지+장애물 상태에서 timeout 입력 시 normal만 복귀하고 회피 상태가 유지되는지 검증한다.
 TEST_F(RVCSWControllerTest, UC007TimeoutRestoresPowerWithoutChangingAvoidanceStatus) {
+    controller.reportFrontObstacleState(false);
+    clearDeviceCalls();
+
     controller.reportDustDetected();
     controller.reportFrontObstacleState(true);
     clearDeviceCalls();
@@ -509,9 +633,11 @@ TEST(AutomaticCleaningTest, MarkDustResponsePendingMakesResponseActiveUntilClear
 
     cleaning.markDustResponsePending();
 
-    EXPECT_TRUE(cleaning.isDustResponseActive());
+    EXPECT_FALSE(cleaning.isDustResponseActive());
+    EXPECT_TRUE(cleaning.isDustResponsePending());
     cleaning.clearDustResponseState();
     EXPECT_FALSE(cleaning.isDustResponseActive());
+    EXPECT_FALSE(cleaning.isDustResponsePending());
 }
 
 // 전/좌/우 blocked+후방 clear 입력 후 three-side와 후진 가능 조건이 계산되는지 검증한다.

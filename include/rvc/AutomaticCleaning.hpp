@@ -28,6 +28,7 @@ public:
 
     MovementStatus movementStatus() const;
     bool isDustResponseActive() const;
+    bool isDustResponsePending() const;
 
 private:
     CommandResult normalCleaningResult();

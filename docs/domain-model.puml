@@ -10,6 +10,7 @@ class "Automatic Cleaning" as AutomaticCleaning {
 
 class "Sensor State" as SensorState {
   frontObstacleDetected
+  backObstacleDetected
   leftObstacleDetected
   rightObstacleDetected
   dustDetected
@@ -84,7 +85,7 @@ MovementCommand "1" --> "1" MovementCommandType : uses
 CleaningCommand "1" --> "1" CleaningPowerLevel : uses
 
 note bottom of SensorState
-  Represents obstacle and dust inputs
+  Represents front, back, side obstacle and dust inputs
   used in one controller decision.
 end note
 

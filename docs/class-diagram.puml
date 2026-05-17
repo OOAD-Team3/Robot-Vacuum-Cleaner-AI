@@ -14,8 +14,10 @@ hide empty members
 package "External Interfaces" as ExternalInterfaces {
   interface "SensorInput" as SensorInput {
     +reportFrontObstacleState(frontObstacleDetected: boolean)
+    +reportBackObstacleState(backObstacleDetected: boolean)
     +reportSideObstacleState(leftObstacleDetected: boolean, rightObstacleDetected: boolean)
     +reportObstacleState(frontObstacleDetected: boolean, leftObstacleDetected: boolean, rightObstacleDetected: boolean)
+    +reportObstacleState(frontObstacleDetected: boolean, backObstacleDetected: boolean, leftObstacleDetected: boolean, rightObstacleDetected: boolean)
     +reportDustDetected()
   }
 
@@ -43,6 +45,7 @@ package "Application Controller" as ApplicationController {
     -sensorState: SensorState
     -automaticCleaning: AutomaticCleaning
     +reportFrontObstacleState(frontObstacleDetected: boolean)
+    +reportBackObstacleState(backObstacleDetected: boolean)
     +reportSideObstacleState(leftObstacleDetected: boolean, rightObstacleDetected: boolean)
     +reportObstacleState(frontObstacleDetected: boolean, leftObstacleDetected: boolean, rightObstacleDetected: boolean)
     +reportDustDetected()
@@ -74,16 +77,21 @@ package "Domain Model" as DomainModel {
 
   class "SensorState" as SensorState {
     -frontObstacleDetected: boolean
+    -backObstacleDetected: boolean
     -leftObstacleDetected: boolean
     -rightObstacleDetected: boolean
     -dustDetected: boolean
     +updateFrontObstacle(frontObstacleDetected: boolean)
+    +updateBackObstacle(backObstacleDetected: boolean)
     +updateSideObstacles(leftObstacleDetected: boolean, rightObstacleDetected: boolean)
     +updateObstacles(frontObstacleDetected: boolean, leftObstacleDetected: boolean, rightObstacleDetected: boolean)
+    +updateObstacles(frontObstacleDetected: boolean, backObstacleDetected: boolean, leftObstacleDetected: boolean, rightObstacleDetected: boolean)
     +updateDustDetected(dustDetected: boolean)
     +isFrontObstacleDetected(): boolean
+    +isBackObstacleDetected(): boolean
     +isDustDetected(): boolean
     +isThreeSideBlocked(): boolean
+    +canMoveBackward(): boolean
     +sideObstacleState(): SideObstacleState
   }
 

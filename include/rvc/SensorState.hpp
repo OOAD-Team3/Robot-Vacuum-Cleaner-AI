@@ -29,6 +29,7 @@ public:
         bool backObstacleDetected,
         bool leftObstacleDetected,
         bool rightObstacleDetected);
+    void clearBackObstacleState();
     void updateDustDetected(bool dustDetected);
 
     bool isFrontObstacleDetected() const;

@@ -54,6 +54,19 @@ void RVCSWController::reportBackObstacleState(bool backObstacleDetected) {
     }
 }
 
+void RVCSWController::reportBackObstacleStateUnknown() {
+    sensorState_.clearBackObstacleState();
+
+    if (sensorState_.isThreeSideBlocked()) {
+        if (automaticCleaning_.isDustResponseActive()) {
+            apply(automaticCleaning_.handleObstacleWhileDustResponse(sensorState_));
+            return;
+        }
+
+        apply(automaticCleaning_.handleThreeSideObstacle(sensorState_));
+    }
+}
+
 void RVCSWController::reportSideObstacleState(bool leftObstacleDetected, bool rightObstacleDetected) {
     sensorState_.updateSideObstacles(leftObstacleDetected, rightObstacleDetected);
 
@@ -216,10 +229,6 @@ void RVCSWController::reportDustDetected() {
 
 void RVCSWController::increasedPowerDurationExpired() {
     apply(automaticCleaning_.handleDustResponseTimeout());
-}
-
-const SensorState& RVCSWController::sensorState() const {
-    return sensorState_;
 }
 
 MovementStatus RVCSWController::movementStatus() const {

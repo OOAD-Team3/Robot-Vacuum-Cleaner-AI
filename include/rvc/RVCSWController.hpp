@@ -19,6 +19,7 @@ public:
 
     void reportFrontObstacleState(bool frontObstacleDetected);
     void reportBackObstacleState(bool backObstacleDetected);
+    void reportBackObstacleStateUnknown();
     void reportSideObstacleState(bool leftObstacleDetected, bool rightObstacleDetected);
     void reportObstacleState(bool frontObstacleDetected, bool leftObstacleDetected, bool rightObstacleDetected);
     void reportObstacleState(
@@ -29,7 +30,6 @@ public:
     void reportDustDetected();
     void increasedPowerDurationExpired();
 
-    const SensorState& sensorState() const;
     MovementStatus movementStatus() const;
 
 private:

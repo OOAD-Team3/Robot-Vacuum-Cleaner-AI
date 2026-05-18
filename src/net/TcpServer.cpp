@@ -83,8 +83,15 @@ bool TcpServer::Response::closeSession() const {
     return closeSession_;
 }
 
-TcpServer::TcpServer(std::string host, unsigned short port, LineHandler lineHandler)
-    : host_(std::move(host)), port_(port), lineHandler_(std::move(lineHandler)) {}
+TcpServer::TcpServer(
+    std::string host,
+    unsigned short port,
+    LineHandler lineHandler,
+    StartedHandler startedHandler)
+    : host_(std::move(host)),
+      port_(port),
+      lineHandler_(std::move(lineHandler)),
+      startedHandler_(std::move(startedHandler)) {}
 
 void TcpServer::run() {
     asio::io_context ioContext;
@@ -95,6 +102,10 @@ void TcpServer::run() {
     acceptor.set_option(tcp::acceptor::reuse_address(true));
     acceptor.bind(endpoint);
     acceptor.listen();
+    if (startedHandler_) {
+        startedHandler_();
+    }
+
     auto lineHandlerMutex = std::make_shared<std::mutex>();
 
     for (;;) {

@@ -20,8 +20,13 @@ public:
     };
 
     using LineHandler = std::function<Response(const std::string&)>;
+    using StartedHandler = std::function<void()>;
 
-    TcpServer(std::string host, unsigned short port, LineHandler lineHandler);
+    TcpServer(
+        std::string host,
+        unsigned short port,
+        LineHandler lineHandler,
+        StartedHandler startedHandler = nullptr);
 
     void run();
 
@@ -29,6 +34,7 @@ private:
     std::string host_;
     unsigned short port_{0};
     LineHandler lineHandler_;
+    StartedHandler startedHandler_;
 };
 
 } // namespace rvc::net

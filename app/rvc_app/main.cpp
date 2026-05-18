@@ -103,9 +103,11 @@ int main(int argc, char* argv[]) {
             [&commandHandler](const std::string& line) {
                 const auto response = commandHandler.handleLine(line);
                 return rvc::net::TcpServer::Response{response.text(), response.closeSession()};
+            },
+            [&config]() {
+                std::cout << "rvc_app listening on " << config.host << ':' << config.port << '\n';
             }};
 
-        std::cout << "rvc_app listening on " << config.host << ':' << config.port << '\n';
         server.run();
     } catch (const std::exception& error) {
         std::cerr << "rvc_app failed: " << error.what() << '\n';

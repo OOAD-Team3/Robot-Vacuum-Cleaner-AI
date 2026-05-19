@@ -84,14 +84,4 @@ DustResponse "1" --> "1..*" CleaningCommand : produces
 MovementCommand "1" --> "1" MovementCommandType : uses
 CleaningCommand "1" --> "1" CleaningPowerLevel : uses
 
-note bottom of SensorState
-  Represents front, back, side obstacle and dust inputs
-  used in one controller decision.
-end note
-
-note bottom of CleaningPolicy
-  Contains only configurable rules required
-  by obstacle avoidance and dust response.
-end note
-
 @enduml

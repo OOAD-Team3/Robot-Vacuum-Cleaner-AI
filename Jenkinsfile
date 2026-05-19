@@ -21,6 +21,11 @@ pipeline {
         CPPCHECK_TEXT = 'build/cppcheck.txt'
         CPPCHECK_XML = 'build/cppcheck.xml'
 
+        SONAR_QUALITY_GATE_TIMEOUT_MINUTES = '30'
+        SONAR_TOKEN = credentials('sonar-token')
+        SONAR_ORG = 'ooad-team3'
+        SONAR_PROJECT_KEY = 'OOAD-Team3_Robot-Vacuum-Cleaner-AI'
+
         DISCORD_WEBHOOK = credentials('discord-webhook')
     }
 
@@ -159,11 +164,12 @@ pipeline {
                     fi
 
                     clang-tidy \
-                      -p ${BUILD_DIR} \
-                      -checks="${CLANG_TIDY_CHECKS}" \
-                      -header-filter='(app|include|src|tests)/.*' \
-                      -export-fixes=${CLANG_TIDY_FIXES} \
-                      $FILES > ${CLANG_TIDY_REPORT} 2>&1 || true
+                    -p ${BUILD_DIR} \
+                    -checks="${CLANG_TIDY_CHECKS}" \
+                    -header-filter='(app|include|src|tests)/.*' \
+                    -system-headers=false \
+                    -export-fixes=${CLANG_TIDY_FIXES} \
+                    $FILES > ${CLANG_TIDY_REPORT} 2>&1 || true
 
                     cat ${CLANG_TIDY_REPORT}
                 '''
@@ -234,6 +240,7 @@ pipeline {
                       --language=c++ \
                       --inline-suppr \
                       --suppress=missingIncludeSystem \
+                      --suppress=*:build/_deps/* \
                       -i${BUILD_DIR}/_deps \
                       2> ${CPPCHECK_TEXT} || true
 
@@ -246,6 +253,7 @@ pipeline {
                       --language=c++ \
                       --inline-suppr \
                       --suppress=missingIncludeSystem \
+                      --suppress=*:build/_deps/* \
                       -i${BUILD_DIR}/_deps \
                       --xml \
                       --xml-version=2 \
@@ -385,6 +393,80 @@ pipeline {
                         webhookURL: env.DISCORD_WEBHOOK,
                         title: 'Coverage Failed',
                         description: "${env.JOB_NAME} #${env.BUILD_NUMBER}\nStage: Coverage\n상태: 실패",
+                        link: env.BUILD_URL,
+                        result: 'FAILURE'
+                    )
+                }
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('SonarQubeCloud') {
+                    sh '''
+                        test -f ${BUILD_DIR}/compile_commands.json
+                        test -f ${COVERAGE_XML}
+
+                        sonar-scanner \
+                        -Dsonar.organization=${SONAR_ORG} \
+                        -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                        -Dsonar.sources=src,include \
+                        -Dsonar.tests=tests \
+                        -Dsonar.cfamily.compile-commands=${BUILD_DIR}/compile_commands.json \
+                        -Dsonar.coverageReportPaths=${COVERAGE_XML} \
+                        -Dsonar.token=${SONAR_TOKEN}
+                    '''
+                }
+            }
+            post {
+                success {
+                    discordSend(
+                        webhookURL: env.DISCORD_WEBHOOK,
+                        title: 'SonarQube Analysis Success',
+                        description: "${env.JOB_NAME} #${env.BUILD_NUMBER}\nStage: SonarQube Analysis\n상태: 성공",
+                        link: env.BUILD_URL,
+                        result: 'SUCCESS'
+                    )
+                }
+                failure {
+                    discordSend(
+                        webhookURL: env.DISCORD_WEBHOOK,
+                        title: 'SonarQube Analysis Failed',
+                        description: "${env.JOB_NAME} #${env.BUILD_NUMBER}\nStage: SonarQube Analysis\n상태: 실패",
+                        link: env.BUILD_URL,
+                        result: 'FAILURE'
+                    )
+                }
+            }
+        }
+        stage('Quality Gate') {
+            steps {
+                timeout(time: env.SONAR_QUALITY_GATE_TIMEOUT_MINUTES.toInteger(), unit: 'MINUTES') {
+                    script {
+                        def qualityGate = waitForQualityGate abortPipeline: false
+                        env.SONAR_QUALITY_GATE_STATUS = qualityGate.status
+
+                        if (qualityGate.status != 'OK') {
+                            error "SonarQube Quality Gate failed: ${qualityGate.status}"
+                        }
+                    }
+                }
+            }
+            post {
+                success {
+                    discordSend(
+                        webhookURL: env.DISCORD_WEBHOOK,
+                        title: 'Quality Gate Success',
+                        description: "${env.JOB_NAME} #${env.BUILD_NUMBER}\nStage: Quality Gate\n상태: 성공\nSonarQube Quality Gate: ${env.SONAR_QUALITY_GATE_STATUS}",
+                        link: env.BUILD_URL,
+                        result: 'SUCCESS'
+                    )
+                }
+                failure {
+                    discordSend(
+                        webhookURL: env.DISCORD_WEBHOOK,
+                        title: 'Quality Gate Failed',
+                        description: "${env.JOB_NAME} #${env.BUILD_NUMBER}\nStage: Quality Gate\n상태: 실패\nSonarQube Quality Gate: ${env.SONAR_QUALITY_GATE_STATUS ?: 'UNKNOWN'}",
                         link: env.BUILD_URL,
                         result: 'FAILURE'
                     )

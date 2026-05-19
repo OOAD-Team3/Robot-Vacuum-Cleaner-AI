@@ -8,4 +8,7 @@ build/
 *.dll
 *.so
 *.dylib
-
+.DS_Store
+.venv/
+__pycache__/
+*.py[cod]

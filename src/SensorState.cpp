@@ -39,6 +39,7 @@ void SensorState::updateObstacles(
     bool leftObstacleDetected,
     bool rightObstacleDetected) {
     frontObstacleDetected_ = frontObstacleDetected;
+    backObstacleDetected_.reset();
     leftObstacleDetected_ = leftObstacleDetected;
     rightObstacleDetected_ = rightObstacleDetected;
 }
@@ -52,6 +53,10 @@ void SensorState::updateObstacles(
     backObstacleDetected_ = backObstacleDetected;
     leftObstacleDetected_ = leftObstacleDetected;
     rightObstacleDetected_ = rightObstacleDetected;
+}
+
+void SensorState::clearBackObstacleState() {
+    backObstacleDetected_.reset();
 }
 
 void SensorState::updateDustDetected(bool dustDetected) {

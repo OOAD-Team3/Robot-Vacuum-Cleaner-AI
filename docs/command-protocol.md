@@ -4,6 +4,8 @@
 
 The protocol does not use JSON. Each request is one line ending with `\n`, and each response is one line ending with `\n`.
 
+This protocol satisfies the simulator command interface and controller state query requirements described by FR-014, FR-015, and UC-008.
+
 ## Connection
 
 Default endpoint:

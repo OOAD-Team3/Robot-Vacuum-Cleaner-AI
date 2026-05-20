@@ -9,8 +9,9 @@ actor "센서 입력" as Sensor
 actor "Time" as Time
 actor "주행 장치" as Drive
 actor "청소 장치" as Cleaner
+actor "시뮬레이터/\n시스템 테스트\n클라이언트" as Simulator
 
-rectangle "RVC SW Controller" as System {
+rectangle "RVC SW Controller System" as System {
   usecase "UC-001\n장애물이 없을 때\n직진 청소" as UC001
   usecase "UC-002\n전방 장애물 감지 후\n정지" as UC002
   usecase "UC-003\n좌측 또는 우측\n회피 방향 선택" as UC003
@@ -18,6 +19,7 @@ rectangle "RVC SW Controller" as System {
   usecase "UC-005\n삼면 장애물 감지 후\n후진" as UC005
   usecase "UC-006\n먼지 감지 이벤트 처리" as UC006
   usecase "UC-007\n청소 출력 일반 상태\n복귀" as UC007
+  usecase "UC-008\nTCP 명령 인터페이스로\n컨트롤러 구동 및\n상태 조회" as UC008
 
   UC001 -[hidden]d-> UC002
   UC002 -[hidden]d-> UC003
@@ -25,10 +27,12 @@ rectangle "RVC SW Controller" as System {
   UC004 -[hidden]d-> UC005
   UC005 -[hidden]d-> UC006
   UC006 -[hidden]d-> UC007
+  UC007 -[hidden]d-> UC008
 }
 
 Sensor -[hidden]d-> Time
 Drive -[hidden]d-> Cleaner
+Cleaner -[hidden]d-> Simulator
 
 Sensor -l-> UC001
 Sensor -l-> UC002
@@ -37,6 +41,7 @@ Sensor -l-> UC004
 Sensor -l-> UC005
 Sensor -l-> UC006
 Time -l-> UC007
+Simulator -r-> UC008
 
 UC001 -l-> Drive
 UC002 -l-> Drive
@@ -48,5 +53,12 @@ UC001 -l-> Cleaner
 UC004 -l-> Cleaner
 UC006 -l-> Cleaner
 UC007 -l-> Cleaner
+
+UC008 ..> UC001 : triggers/observes
+UC008 ..> UC002 : triggers/observes
+UC008 ..> UC003 : triggers/observes
+UC008 ..> UC005 : triggers/observes
+UC008 ..> UC006 : triggers/observes
+UC008 ..> UC007 : triggers/observes
 
 @enduml

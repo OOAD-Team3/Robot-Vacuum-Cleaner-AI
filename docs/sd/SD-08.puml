@@ -1,0 +1,72 @@
+' SD-08. UC-008 TCP 명령 인터페이스로 컨트롤러 구동 및 상태 조회
+' Related Use Case: UC-008. TCP 명령 인터페이스로 컨트롤러 구동 및 상태 조회
+' Intent: 외부 시뮬레이터/시스템 테스트 클라이언트의 line-based command가 TCP/Protocol adapter를 거쳐 컨트롤러 입력과 상태 조회로 변환되는 흐름을 표현한다.
+' Note: Python 지도, 렌더링, 물리 적용, coverage assist는 시스템 외부 책임이며 C++ 컨트롤러는 protocol command가 전달한 추상 입력만 처리한다.
+
+@startuml SD_08_UC008_TCP_Command_Interface
+title SD-08 - UC-008 TCP 명령 인터페이스로 컨트롤러 구동 및 상태 조회
+
+actor "시뮬레이터/\n시스템 테스트 클라이언트" as Client
+participant "TcpServer" as TcpServer
+participant "CommandHandler" as Handler
+participant "CommandParser" as Parser
+participant "RobotVacuumApplication" as App
+participant "RVCSWController" as Controller
+participant "StateFormatter" as Formatter
+
+Client -> TcpServer: newline-terminated command
+activate TcpServer
+
+alt command line exceeds 1024 bytes
+    TcpServer --> Client: ERR INVALID_ARGUMENT
+    TcpServer -> Client: close session
+else command line accepted
+    TcpServer -> Handler: handleLine(line)
+    activate Handler
+    Handler -> Parser: parse(line)
+    activate Parser
+    Parser --> Handler: ParseResult
+    deactivate Parser
+
+    alt parse failure
+        Handler --> TcpServer: CommandResponse(ERR UNKNOWN_COMMAND or ERR INVALID_ARGUMENT)
+    else sensor command
+        Handler -> App: setObstacleState(...) or setFront/Back/Side(...)
+        activate App
+        App -> Controller: reportObstacleState(...) or reportFront/Back/Side(...)
+        Controller --> App: device commands recorded
+        deactivate App
+        Handler --> TcpServer: CommandResponse(OK ...)
+    else dust command
+        Handler -> App: reportDustDetected()
+        activate App
+        App -> Controller: reportDustDetected()
+        Controller --> App: cleaning command and timer recorded
+        deactivate App
+        Handler --> TcpServer: CommandResponse(OK DUST_DETECTED)
+    else power timeout command
+        Handler -> App: expirePowerTimer()
+        activate App
+        App -> Controller: increasedPowerDurationExpired()
+        Controller --> App: cleaning command recorded
+        deactivate App
+        Handler --> TcpServer: CommandResponse(OK POWER_TIMEOUT or ERR INVALID_STATE)
+    else state query
+        Handler -> App: snapshot()
+        App --> Handler: ControllerStateSnapshot
+        Handler -> Formatter: format(snapshot)
+        Formatter --> Handler: OK STATE ...
+        Handler --> TcpServer: CommandResponse(OK STATE ...)
+    else reset command
+        Handler -> App: reset()
+        Handler --> TcpServer: CommandResponse(OK RESET)
+    else quit command
+        Handler --> TcpServer: CommandResponse(OK BYE, closeSession=true)
+    end
+    deactivate Handler
+
+    TcpServer --> Client: response line
+end
+
+deactivate TcpServer
+@enduml

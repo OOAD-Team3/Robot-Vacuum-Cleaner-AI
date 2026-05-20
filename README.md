@@ -80,7 +80,8 @@ Robot Vacuum Cleaner(RVC) SW Controller의 요구사항과 설계 문서, 코드
     │   ├── UC-004.puml
     │   ├── UC-005.puml
     │   ├── UC-006.puml
-    │   └── UC-007.puml
+    │   ├── UC-007.puml
+    │   └── UC-008.puml
     └── sd                                          # 시스템 내부 객체 간 협력 흐름
         ├── SD-01.puml
         ├── SD-02.puml
@@ -88,7 +89,8 @@ Robot Vacuum Cleaner(RVC) SW Controller의 요구사항과 설계 문서, 코드
         ├── SD-04.puml
         ├── SD-05.puml
         ├── SD-06.puml
-        └── SD-07.puml
+        ├── SD-07.puml
+        └── SD-08.puml
 ```
 
 ### Current Use Case Map
@@ -102,6 +104,7 @@ Robot Vacuum Cleaner(RVC) SW Controller의 요구사항과 설계 문서, 코드
 | UC-005   | 삼면 장애물 감지 후 후진      | `docs/ssd/UC-005.puml` | `docs/sd/SD-05.puml` |
 | UC-006   | 먼지 감지 이벤트 처리         | `docs/ssd/UC-006.puml` | `docs/sd/SD-06.puml` |
 | UC-007   | 청소 출력 일반 상태 복귀      | `docs/ssd/UC-007.puml` | `docs/sd/SD-07.puml` |
+| UC-008   | TCP 명령으로 구동 및 상태 조회 | `docs/ssd/UC-008.puml` | `docs/sd/SD-08.puml` |
 
 ### Implementation
 

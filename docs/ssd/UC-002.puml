@@ -1,4 +1,5 @@
 @startuml SSD_UC002_Stop_On_Front_Obstacle
+hide footbox
 title SSD - UC-002 Stop After Front Obstacle Detection
 
 actor "Sensor Input" as Sensor

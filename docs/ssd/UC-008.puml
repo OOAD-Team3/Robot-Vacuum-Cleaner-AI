@@ -1,4 +1,5 @@
 @startuml SSD_UC008_TCP_Command_Interface
+hide footbox
 title SSD - UC-008 Drive Controller And Query State Through TCP Commands
 
 actor "Simulator/System Test Client" as Client

@@ -4,6 +4,7 @@
 ' Note: 먼지 대응 상태가 유지 중이면 증가 출력 상태를 일반 출력으로 덮어쓰지 않는다.
 
 @startuml SD_04_UC004_Resume_After_Turn
+hide footbox
 title SD-04 - UC-004 방향 전환 후 청소 재개
 
 actor "센서 입력" as Sensor

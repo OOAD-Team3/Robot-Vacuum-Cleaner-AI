@@ -4,6 +4,7 @@
 ' Note: 삼면 장애물은 UC-005로, 정지 중 먼지 감지는 UC-006 출력 처리로 이어진다.
 
 @startuml SD_02_UC002_Stop_On_Front_Obstacle
+hide footbox
 title SD-02 - UC-002 전방 장애물 감지 후 정지
 
 actor "센서 입력" as Sensor

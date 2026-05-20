@@ -4,6 +4,7 @@
 ' Note: Python 지도, 렌더링, 물리 적용, coverage assist는 시스템 외부 책임이며 C++ 컨트롤러는 protocol command가 전달한 추상 입력만 처리한다.
 
 @startuml SD_08_UC008_TCP_Command_Interface
+hide footbox
 title SD-08 - UC-008 TCP 명령 인터페이스로 컨트롤러 구동 및 상태 조회
 
 actor "시뮬레이터/\n시스템 테스트 클라이언트" as Client

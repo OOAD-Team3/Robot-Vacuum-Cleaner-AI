@@ -4,6 +4,7 @@
 ' Note: 장애물 회피 중이어도 주행 상태는 유지하고 청소 출력만 일반 상태로 복귀한다.
 
 @startuml SD_07_UC007_Return_To_Normal_Power
+hide footbox
 title SD-07 - UC-007 청소 출력 일반 상태 복귀
 
 actor "Time" as Time

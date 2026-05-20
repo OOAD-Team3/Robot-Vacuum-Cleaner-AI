@@ -4,6 +4,7 @@
 ' Note: 후방 장애물이 없으면 후진하고, 후방 장애물이 있으면 정지 상태를 유지한다.
 
 @startuml SD_05_UC005_Backward_On_Three_Side_Obstacle
+hide footbox
 title SD-05 - UC-005 삼면 장애물 감지 후 후진
 
 actor "센서 입력" as Sensor

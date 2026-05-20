@@ -1,4 +1,5 @@
 @startuml SSD_UC005_Backward_On_Three_Side_Obstacle
+hide footbox
 title SSD - UC-005 Move Backward After Three-Side Obstacle Detection
 
 actor "Sensor Input" as Sensor

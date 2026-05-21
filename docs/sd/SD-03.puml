@@ -4,6 +4,7 @@
 ' Note: 좌우가 모두 막힌 경우 방향을 선택하지 않고 UC-005로 전환한다.
 
 @startuml SD_03_UC003_Select_Avoidance_Direction
+hide footbox
 title SD-03 - UC-003 좌측 또는 우측 회피 방향 선택
 
 actor "센서 입력" as Sensor

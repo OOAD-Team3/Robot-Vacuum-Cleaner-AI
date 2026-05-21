@@ -1,4 +1,5 @@
 @startuml SSD_UC001_Forward_Cleaning
+hide footbox
 title SSD - UC-001 Forward Cleaning Without Obstacle
 
 actor "Sensor Input" as Sensor

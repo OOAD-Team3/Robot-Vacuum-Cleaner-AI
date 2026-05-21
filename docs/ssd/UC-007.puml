@@ -1,4 +1,5 @@
 @startuml SSD_UC007_Return_To_Normal_Power
+hide footbox
 title SSD - UC-007 Return Cleaning Power To Normal
 
 participant "RVC SW Controller" as System

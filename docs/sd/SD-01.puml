@@ -4,6 +4,7 @@
 ' Note: 전방 장애물 또는 먼지 감지 시 각각 UC-002, UC-006으로 전환되는 대안 흐름을 포함한다.
 
 @startuml SD_01_UC001_Forward_Cleaning
+hide footbox
 title SD-01 - UC-001 장애물이 없을 때 직진 청소
 
 actor "센서 입력" as Sensor

@@ -1,4 +1,5 @@
 @startuml SSD_UC006_Handle_Dust_Detected
+hide footbox
 title SSD - UC-006 Handle Dust Detection Event
 
 actor "Sensor Input" as Sensor

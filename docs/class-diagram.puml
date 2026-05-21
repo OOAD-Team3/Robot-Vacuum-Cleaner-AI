@@ -1,8 +1,9 @@
-' Class Diagram derived from docs/sd/SD-01.puml through SD-07.puml.
+' Class Diagram derived from docs/sd/SD-01.puml through SD-08.puml and the rvc_app support implementation.
 ' Intent: Show the structural design implied by the sequence diagrams for automatic cleaning,
-' obstacle avoidance, dust response, and command generation.
+' obstacle avoidance, dust response, command generation, and simulator/system-test integration.
 ' Scope: Hardware details are represented as interfaces because requirements keep sensor,
 ' driving, and cleaning devices abstract.
+' Python simulator internals are external to this C++ design; they communicate through the TCP command protocol.
 
 @startuml RVC_Class_Diagram
 title RVC SW Controller Class Diagram
@@ -37,6 +38,130 @@ package "External Interfaces" as ExternalInterfaces {
 
   interface "Time" as Time {
     +startTimer(duration: Duration)
+  }
+}
+
+package "Transport Adapter" as TransportAdapter {
+  class "TcpServer" as TcpServer {
+    -host: string
+    -port: unsigned short
+    -lineHandler: LineHandler
+    -startedHandler: StartedHandler
+    +run()
+  }
+
+  class "TcpServer::Response" as TcpServerResponse {
+    -message: string
+    -closeSession: boolean
+    +message(): string
+    +closeSession(): boolean
+  }
+}
+
+package "Protocol Adapter" as ProtocolAdapter {
+  class "CommandHandler" as CommandHandler {
+    -application: RobotVacuumApplication
+    -parser: CommandParser
+    -stateFormatter: StateFormatter
+    +handleLine(line: string): CommandResponse
+    -handleParsedCommand(command: ParsedCommand): CommandResponse
+  }
+
+  class "CommandParser" as CommandParser {
+    +parse(line: string): ParseResult
+  }
+
+  class "ParsedCommand" as ParsedCommand {
+    -type: CommandType
+    -frontObstacleDetected: boolean
+    -backObstacleDetected: BackObstacleValue
+    -leftObstacleDetected: boolean
+    -rightObstacleDetected: boolean
+    +type(): CommandType
+  }
+
+  class "ParseResult" as ParseResult {
+    -command: ParsedCommand
+    -error: ParseError
+    -ok: boolean
+    +ok(): boolean
+    +command(): ParsedCommand
+    +error(): ParseError
+  }
+
+  class "CommandResponse" as CommandResponse {
+    -text: string
+    -closeSession: boolean
+    +text(): string
+    +closeSession(): boolean
+  }
+
+  class "StateFormatter" as StateFormatter {
+    +format(snapshot: ControllerStateSnapshot): string
+  }
+}
+
+package "Simulation Support" as SimulationSupport {
+  class "RobotVacuumApplication" as RobotVacuumApplication {
+    -drivingDevice: RecordingDrivingDevice
+    -cleaningDevice: RecordingCleaningDevice
+    -time: AppTime
+    -controller: RVCSWController
+    -frontObstacleDetected: boolean
+    -backObstacleDetected: optional<boolean>
+    -leftObstacleDetected: boolean
+    -rightObstacleDetected: boolean
+    -dustDetected: boolean
+    +reset()
+    +setFrontObstacle(detected: boolean)
+    +setBackObstacle(detected: BackObstacleInput)
+    +setSideObstacles(leftDetected: boolean, rightDetected: boolean)
+    +setObstacleState(frontDetected: boolean, backDetected: BackObstacleInput, leftDetected: boolean, rightDetected: boolean)
+    +reportDustDetected()
+    +expirePowerTimer(): boolean
+    +snapshot(): ControllerStateSnapshot
+  }
+
+  class "ControllerStateSnapshot" as ControllerStateSnapshot {
+    -movementStatus: MovementStatus
+    -frontObstacleDetected: boolean
+    -backObstacleDetected: optional<boolean>
+    -leftObstacleDetected: boolean
+    -rightObstacleDetected: boolean
+    -dustDetected: boolean
+    -driveCommand: DriveCommand
+    -cleaningPower: CleaningPowerState
+    -timerActive: boolean
+  }
+
+  class "RecordingDrivingDevice" as RecordingDrivingDevice {
+    -lastCommand: DriveCommand
+    +moveForward()
+    +moveBackward()
+    +turnLeft()
+    +turnRight()
+    +turn(direction: AvoidanceDirection)
+    +stop()
+    +reset()
+    +lastCommand(): DriveCommand
+  }
+
+  class "RecordingCleaningDevice" as RecordingCleaningDevice {
+    -powerState: CleaningPowerState
+    +setCleaningPower(powerLevel: CleaningPowerLevel)
+    +keepCleaningPower(powerLevel: CleaningPowerLevel)
+    +reset()
+    +powerState(): CleaningPowerState
+  }
+
+  class "AppTime" as AppTime {
+    -timerActive: boolean
+    -activeDuration: Duration
+    +startTimer(duration: Duration)
+    +reset()
+    +expireTimer()
+    +isTimerActive(): boolean
+    +activeDuration(): Duration
   }
 }
 
@@ -191,8 +316,87 @@ package "Value Types" as ValueTypes {
     RIGHT
   }
 
+  enum "CommandType" as CommandType {
+    PING
+    RESET
+    GET_STATE
+    SET_FRONT
+    SET_BACK
+    SET_SIDE
+    SET_OBSTACLES
+    DUST_DETECTED
+    POWER_TIMEOUT
+    QUIT
+  }
+
+  enum "BackObstacleValue" as BackObstacleValue {
+    CLEAR
+    BLOCKED
+    UNKNOWN
+  }
+
+  enum "ParseError" as ParseError {
+    NONE
+    UNKNOWN_COMMAND
+    INVALID_ARGUMENT
+  }
+
+  enum "BackObstacleInput" as BackObstacleInput {
+    CLEAR
+    BLOCKED
+    UNKNOWN
+  }
+
+  enum "DriveCommand" as DriveCommand {
+    NONE
+    MOVE_FORWARD
+    MOVE_BACKWARD
+    TURN_LEFT
+    TURN_RIGHT
+    STOP
+  }
+
+  enum "CleaningPowerState" as CleaningPowerState {
+    OFF
+    NORMAL
+    INCREASED
+  }
+
   class "Duration" as Duration <<value object>>
 }
+
+TcpServer ..> CommandHandler : invokes line handler
+TcpServer ..> TcpServerResponse : writes
+
+CommandHandler *-- CommandParser
+CommandHandler *-- StateFormatter
+CommandHandler --> RobotVacuumApplication : updates/queries
+CommandHandler ..> ParsedCommand : handles
+CommandHandler ..> CommandResponse : returns
+
+CommandParser ..> ParseResult : returns
+ParseResult --> ParsedCommand : optional command
+ParseResult --> ParseError : optional error
+ParsedCommand --> CommandType : has
+ParsedCommand --> BackObstacleValue : uses
+CommandResponse --> TcpServerResponse : adapted by main
+StateFormatter ..> ControllerStateSnapshot : formats
+
+RobotVacuumApplication *-- RVCSWController
+RobotVacuumApplication *-- RecordingDrivingDevice
+RobotVacuumApplication *-- RecordingCleaningDevice
+RobotVacuumApplication *-- AppTime
+RobotVacuumApplication ..> ControllerStateSnapshot : creates
+RobotVacuumApplication --> BackObstacleInput : accepts
+RecordingDrivingDevice ..|> DrivingDevice
+RecordingCleaningDevice ..|> CleaningDevice
+AppTime ..|> Time
+RecordingDrivingDevice --> DriveCommand : records
+RecordingCleaningDevice --> CleaningPowerState : records
+AppTime --> Duration : records
+ControllerStateSnapshot --> MovementStatus : reports
+ControllerStateSnapshot --> DriveCommand : reports
+ControllerStateSnapshot --> CleaningPowerState : reports
 
 SensorInput ..> RVCSWController : reports input to
 Time ..> RVCSWController : notifies timeout to
@@ -244,6 +448,12 @@ end note
 note bottom of ExternalInterfaces
   These represent abstract hardware or time inputs.
   Detailed hardware control is outside the current scope.
+end note
+
+note bottom of SimulationSupport
+  rvc_app support classes adapt TCP commands from the Python simulator
+  or system test client into controller inputs, then expose a state snapshot.
+  Map physics, rendering, and coverage assist remain Python-side concerns.
 end note
 
 @enduml

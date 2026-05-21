@@ -4,6 +4,7 @@
 ' Note: 장애물 회피가 동시에 발생해도 주행 상태와 먼지 대응 상태는 별도로 유지한다.
 
 @startuml SD_06_UC006_Handle_Dust_Detected
+hide footbox
 title SD-06 - UC-006 먼지 감지 이벤트 처리
 
 actor "센서 입력" as Sensor

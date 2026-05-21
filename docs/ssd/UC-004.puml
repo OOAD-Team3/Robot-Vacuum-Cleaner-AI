@@ -1,4 +1,5 @@
 @startuml SSD_UC004_Resume_After_Turn
+hide footbox
 title SSD - UC-004 Resume Cleaning After Direction Change
 
 actor "Sensor Input" as Sensor

@@ -1,4 +1,5 @@
 @startuml SSD_UC003_Select_Avoidance_Direction
+hide footbox
 title SSD - UC-003 Select Left or Right Avoidance Direction
 
 actor "Sensor Input" as Sensor

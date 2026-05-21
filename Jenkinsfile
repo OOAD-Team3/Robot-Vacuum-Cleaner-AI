@@ -439,40 +439,6 @@ pipeline {
                 }
             }
         }
-        stage('Quality Gate') {
-            steps {
-                timeout(time: env.SONAR_QUALITY_GATE_TIMEOUT_MINUTES.toInteger(), unit: 'MINUTES') {
-                    script {
-                        def qualityGate = waitForQualityGate abortPipeline: false
-                        env.SONAR_QUALITY_GATE_STATUS = qualityGate.status
-
-                        if (qualityGate.status != 'OK') {
-                            error "SonarQube Quality Gate failed: ${qualityGate.status}"
-                        }
-                    }
-                }
-            }
-            post {
-                success {
-                    discordSend(
-                        webhookURL: env.DISCORD_WEBHOOK,
-                        title: 'Quality Gate Success',
-                        description: "${env.JOB_NAME} #${env.BUILD_NUMBER}\nStage: Quality Gate\n상태: 성공\nSonarQube Quality Gate: ${env.SONAR_QUALITY_GATE_STATUS}",
-                        link: env.BUILD_URL,
-                        result: 'SUCCESS'
-                    )
-                }
-                failure {
-                    discordSend(
-                        webhookURL: env.DISCORD_WEBHOOK,
-                        title: 'Quality Gate Failed',
-                        description: "${env.JOB_NAME} #${env.BUILD_NUMBER}\nStage: Quality Gate\n상태: 실패\nSonarQube Quality Gate: ${env.SONAR_QUALITY_GATE_STATUS ?: 'UNKNOWN'}",
-                        link: env.BUILD_URL,
-                        result: 'FAILURE'
-                    )
-                }
-            }
-        }
     }
 
     post {

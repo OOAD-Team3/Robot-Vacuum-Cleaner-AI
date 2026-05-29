@@ -1,0 +1,38 @@
+@startuml SSD_UC005_Backward_On_Three_Side_Obstacle_Without_Right_Sensor
+hide footbox
+title SSD - UC-005 Move Backward After Three-Side Obstacle Detection - Without Right Sensor
+
+actor "Sensor Input" as Sensor
+participant "RVC SW Controller" as System
+actor "Driving Device" as Drive
+
+alt backward available
+    note right of System: UC-003 confirmed front, left,\nand previous right direction are blocked.
+    Sensor -> System: reportBackObstacleState(backObstacleDetected=false)
+    activate System
+    System -> Drive: stop()
+    System -> Drive: moveBackward()
+
+    alt left available after backward movement
+        Sensor -> System: reportLeftObstacleState(leftObstacleDetected=false)
+        note right of System: Continue with UC-003;\nleft avoidance is selected first.
+    else left blocked and previous right direction open after probe
+        Sensor -> System: reportLeftObstacleState(leftObstacleDetected=true)
+        System -> Drive: turnRight90()
+        Sensor -> System: reportFrontObstacleState(frontObstacleDetected=false)
+        note right of System: Use current heading as right avoidance;\ncontinue with UC-004.
+    else left blocked and previous right direction still blocked
+        Sensor -> System: reportLeftObstacleState(leftObstacleDetected=true)
+        System -> Drive: turnRight90()
+        Sensor -> System: reportFrontObstacleState(frontObstacleDetected=true)
+        System -> Drive: turnLeft90()
+        note right of System: Return to original heading;\nremain stopped or evaluate additional backward movement.
+    end
+else backward unavailable
+    note right of System: UC-003 confirmed front, left,\nand previous right direction are blocked.
+    Sensor -> System: reportBackObstacleState(backObstacleDetected=true)
+    activate System
+    System -> Drive: stop()
+end
+deactivate System
+@enduml

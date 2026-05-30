@@ -57,6 +57,7 @@ UC007 -l-> Cleaner
 UC008 ..> UC001 : triggers/observes
 UC008 ..> UC002 : triggers/observes
 UC008 ..> UC003 : triggers/observes
+UC008 ..> UC004 : triggers/observes
 UC008 ..> UC005 : triggers/observes
 UC008 ..> UC006 : triggers/observes
 UC008 ..> UC007 : triggers/observes

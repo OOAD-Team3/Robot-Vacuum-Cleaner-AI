@@ -1,0 +1,425 @@
+' Class Diagram derived from docs/sd-without-right-sensor/*.puml, unchanged SSD/SD flows,
+' docs/domain-model-without-right-sensor.puml, and the rvc_app support design.
+' Intent: Show the structural design implied by the sequence diagrams for automatic cleaning,
+' obstacle avoidance, dust response, command generation, and simulator/system-test integration.
+' Scope: Hardware details are represented as interfaces because requirements keep sensor,
+' driving, and cleaning devices abstract.
+' Python simulator internals are external to this C++ design; they communicate through the TCP command protocol.
+
+@startuml RVC_Class_Diagram_Without_Right_Sensor
+title RVC SW Controller Class Diagram - Without Right Sensor
+
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+hide empty members
+
+package "External Interfaces" as ExternalInterfaces {
+  interface "SensorInput" as SensorInput {
+    +reportFrontObstacleState(frontObstacleDetected: boolean)
+    +reportBackObstacleState(backObstacleDetected: boolean)
+    +reportLeftObstacleState(leftObstacleDetected: boolean)
+    +reportObstacleState(frontObstacleDetected: boolean, backObstacleDetected: boolean, leftObstacleDetected: boolean)
+    +reportDustDetected()
+  }
+
+  interface "DrivingDevice" as DrivingDevice {
+    +moveForward()
+    +moveBackward()
+    +turnLeft()
+    +turnRight()
+    +turn(direction: AvoidanceDirection)
+    +stop()
+  }
+
+  interface "CleaningDevice" as CleaningDevice {
+    +setCleaningPower(powerLevel: CleaningPowerLevel)
+    +keepCleaningPower(powerLevel: CleaningPowerLevel)
+  }
+
+  interface "Time" as Time {
+    +startTimer(duration: Duration)
+  }
+}
+
+package "Transport Adapter" as TransportAdapter {
+  class "TcpServer" as TcpServer {
+    -host: string
+    -port: unsigned short
+    -lineHandler: LineHandler
+    -startedHandler: StartedHandler
+    +run()
+  }
+
+  class "TcpServer::Response" as TcpServerResponse {
+    -message: string
+    -closeSession: boolean
+    +message(): string
+    +closeSession(): boolean
+  }
+}
+
+package "Protocol Adapter" as ProtocolAdapter {
+  class "CommandHandler" as CommandHandler {
+    -application: RobotVacuumApplication
+    -parser: CommandParser
+    -stateFormatter: StateFormatter
+    +handleLine(line: string): CommandResponse
+    -handleParsedCommand(command: ParsedCommand): CommandResponse
+  }
+
+  class "CommandParser" as CommandParser {
+    +parse(line: string): ParseResult
+  }
+
+  class "ParsedCommand" as ParsedCommand {
+    -type: CommandType
+    -frontObstacleDetected: boolean
+    -backObstacleDetected: BackObstacleValue
+    -leftObstacleDetected: boolean
+    +type(): CommandType
+  }
+
+  class "ParseResult" as ParseResult {
+    -command: ParsedCommand
+    -error: ParseError
+    -ok: boolean
+    +ok(): boolean
+    +command(): ParsedCommand
+    +error(): ParseError
+  }
+
+  class "CommandResponse" as CommandResponse {
+    -text: string
+    -closeSession: boolean
+    +text(): string
+    +closeSession(): boolean
+  }
+
+  class "StateFormatter" as StateFormatter {
+    +format(snapshot: ControllerStateSnapshot): string
+  }
+}
+
+package "Simulation Support" as SimulationSupport {
+  class "RobotVacuumApplication" as RobotVacuumApplication {
+    -drivingDevice: RecordingDrivingDevice
+    -cleaningDevice: RecordingCleaningDevice
+    -time: AppTime
+    -controller: RVCSWController
+    -frontObstacleDetected: boolean
+    -backObstacleDetected: optional<boolean>
+    -leftObstacleDetected: boolean
+    -dustDetected: boolean
+    +reset()
+    +setFrontObstacle(detected: boolean)
+    +setBackObstacle(detected: BackObstacleInput)
+    +setLeftObstacle(detected: boolean)
+    +setObstacleState(frontDetected: boolean, backDetected: BackObstacleInput, leftDetected: boolean)
+    +reportDustDetected()
+    +expirePowerTimer(): boolean
+    +snapshot(): ControllerStateSnapshot
+  }
+
+  class "ControllerStateSnapshot" as ControllerStateSnapshot {
+    -movementStatus: MovementStatus
+    -frontObstacleDetected: boolean
+    -backObstacleDetected: optional<boolean>
+    -leftObstacleDetected: boolean
+    -dustDetected: boolean
+    -driveCommand: DriveCommand
+    -cleaningPower: CleaningPowerState
+    -timerActive: boolean
+  }
+
+  class "RecordingDrivingDevice" as RecordingDrivingDevice {
+    -lastCommand: DriveCommand
+    +moveForward()
+    +moveBackward()
+    +turnLeft()
+    +turnRight()
+    +turn(direction: AvoidanceDirection)
+    +stop()
+    +reset()
+    +lastCommand(): DriveCommand
+  }
+
+  class "RecordingCleaningDevice" as RecordingCleaningDevice {
+    -powerState: CleaningPowerState
+    +setCleaningPower(powerLevel: CleaningPowerLevel)
+    +keepCleaningPower(powerLevel: CleaningPowerLevel)
+    +reset()
+    +powerState(): CleaningPowerState
+  }
+
+  class "AppTime" as AppTime {
+    -timerActive: boolean
+    -activeDuration: Duration
+    +startTimer(duration: Duration)
+    +reset()
+    +expireTimer()
+    +isTimerActive(): boolean
+    +activeDuration(): Duration
+  }
+}
+
+package "Application Controller" as ApplicationController {
+  class "RVCSWController" as RVCSWController {
+    -sensorState: SensorState
+    -automaticCleaning: AutomaticCleaning
+    +reportFrontObstacleState(frontObstacleDetected: boolean)
+    +reportBackObstacleState(backObstacleDetected: boolean)
+    +reportLeftObstacleState(leftObstacleDetected: boolean)
+    +reportObstacleState(frontObstacleDetected: boolean, backObstacleDetected: boolean, leftObstacleDetected: boolean)
+    +reportDustDetected()
+    +increasedPowerDurationExpired()
+    -executeMovementCommand(command: MovementCommand)
+    -executeCleaningCommand(command: CleaningCommand)
+    -startTimerIfNeeded(duration: Duration)
+  }
+}
+
+package "Domain Model" as DomainModel {
+  class "AutomaticCleaning" as AutomaticCleaning {
+    -movementStatus: MovementStatus
+    -dustResponse: DustResponse
+    -dustResponsePending: boolean
+    +handleSensorState(sensorState: SensorState): CommandResult
+    +selectAvoidanceDirection(sensorState: SensorState): AvoidanceDecision
+    +resumeAfterTurn(sensorState: SensorState): CommandResult
+    +handleThreeSideObstacle(sensorState: SensorState): CommandResult
+    +handleDustDetected(sensorState: SensorState): CommandResult
+    +handleObstacleWhileDustResponse(sensorState: SensorState): CommandResult
+    +handleDustResponseTimeout(): CommandResult
+    +markDustResponsePending()
+    +clearDustResponseState()
+    +isDustResponseActive(): boolean
+    +isDustResponsePending(): boolean
+    +keepCurrentMovementStatus()
+    +changeMovementStatus(status: MovementStatus)
+    +keepMovementStatus(status: MovementStatus)
+  }
+
+  class "SensorState" as SensorState {
+    -frontObstacleDetected: boolean
+    -backObstacleDetected: boolean
+    -leftObstacleDetected: boolean
+    -dustDetected: boolean
+    +updateFrontObstacle(frontObstacleDetected: boolean)
+    +updateBackObstacle(backObstacleDetected: boolean)
+    +updateLeftObstacle(leftObstacleDetected: boolean)
+    +updateObstacles(frontObstacleDetected: boolean, backObstacleDetected: boolean, leftObstacleDetected: boolean)
+    +updateDustDetected(dustDetected: boolean)
+    +isFrontObstacleDetected(): boolean
+    +isBackObstacleDetected(): boolean
+    +isBackObstacleStateKnown(): boolean
+    +isDustDetected(): boolean
+    +canMoveBackward(): boolean
+  }
+
+  class "CleaningPolicy" as CleaningPolicy {
+    -increasedPowerLevel: CleaningPowerLevel
+    -increasedPowerDuration: Duration
+    +normalPowerLevel(): CleaningPowerLevel
+    +increasedPowerLevel(): CleaningPowerLevel
+    +increasedPowerDuration(): Duration
+  }
+
+  class "AvoidanceDecision" as AvoidanceDecision {
+    -selectedDirection: AvoidanceDirection
+    -rightProbeRequired: boolean
+    -backwardRequired: boolean
+    +prepareDirectionDecision()
+    +select(direction: AvoidanceDirection)
+    +evaluateBackwardRequired(sensorState: SensorState)
+    +markBackwardRequired()
+    +markNoAvailableDirection()
+  }
+
+  class "RightDirectionProbe" as RightDirectionProbe {
+    -active: boolean
+    -result: RightProbeResult
+  }
+
+  class "DustResponse" as DustResponse {
+    -active: boolean
+    -powerLevel: CleaningPowerLevel
+    -duration: Duration
+    +start(powerLevel: CleaningPowerLevel, duration: Duration)
+    +expire()
+    +isActive(): boolean
+    +currentPowerLevel(): CleaningPowerLevel
+  }
+
+  class "MovementCommand" as MovementCommand {
+    -commandType: MovementCommandType
+    -direction: AvoidanceDirection
+    +create(commandType: MovementCommandType): MovementCommand
+    +createTurnCommand(direction: AvoidanceDirection): MovementCommand
+  }
+
+  class "CleaningCommand" as CleaningCommand {
+    -powerLevel: CleaningPowerLevel
+    +create(powerLevel: CleaningPowerLevel): CleaningCommand
+  }
+
+  class "CommandResult" as CommandResult {
+    -movementCommands: List<MovementCommand>
+    -lastMovementCommand: MovementCommand
+    -cleaningCommand: CleaningCommand
+    -timerDuration: Duration
+    +withMovement(command: MovementCommand): CommandResult
+    +withCleaning(command: CleaningCommand): CommandResult
+    +withTimer(duration: Duration): CommandResult
+  }
+}
+
+package "Value Types" as ValueTypes {
+  enum "MovementStatus" as MovementStatus {
+    CLEANING
+    AVOIDING_OBSTACLE
+    BLOCKED
+    STOPPED
+  }
+
+  enum "MovementCommandType" as MovementCommandType {
+    MOVE_FORWARD
+    MOVE_BACKWARD
+    TURN_LEFT
+    TURN_RIGHT
+    STOP
+  }
+
+  enum "CleaningPowerLevel" as CleaningPowerLevel {
+    NORMAL
+    INCREASED
+  }
+
+  enum "AvoidanceDirection" as AvoidanceDirection {
+    LEFT
+    RIGHT
+  }
+
+  enum "RightProbeResult" as RightProbeResult {
+    UNKNOWN
+    OPEN
+    BLOCKED
+  }
+
+  enum "CommandType" as CommandType {
+    PING
+    RESET
+    GET_STATE
+    SET_FRONT
+    SET_BACK
+    SET_LEFT
+    SET_OBSTACLES
+    DUST_DETECTED
+    POWER_TIMEOUT
+    QUIT
+  }
+
+  enum "BackObstacleValue" as BackObstacleValue {
+    CLEAR
+    BLOCKED
+    UNKNOWN
+  }
+
+  enum "ParseError" as ParseError {
+    NONE
+    UNKNOWN_COMMAND
+    INVALID_ARGUMENT
+  }
+
+  enum "BackObstacleInput" as BackObstacleInput {
+    CLEAR
+    BLOCKED
+    UNKNOWN
+  }
+
+  enum "DriveCommand" as DriveCommand {
+    NONE
+    MOVE_FORWARD
+    MOVE_BACKWARD
+    TURN_LEFT
+    TURN_RIGHT
+    STOP
+  }
+
+  enum "CleaningPowerState" as CleaningPowerState {
+    OFF
+    NORMAL
+    INCREASED
+  }
+
+  class "Duration" as Duration <<value object>>
+}
+
+TcpServer ..> CommandHandler : invokes line handler
+TcpServer ..> TcpServerResponse : writes
+
+CommandHandler *-- CommandParser
+CommandHandler *-- StateFormatter
+CommandHandler --> RobotVacuumApplication : updates/queries
+CommandHandler ..> ParsedCommand : handles
+CommandHandler ..> CommandResponse : returns
+
+CommandParser ..> ParseResult : returns
+ParseResult --> ParsedCommand : optional command
+ParseResult --> ParseError : optional error
+ParsedCommand --> CommandType : has
+ParsedCommand --> BackObstacleValue : uses
+CommandResponse --> TcpServerResponse : adapted by main
+StateFormatter ..> ControllerStateSnapshot : formats
+
+RobotVacuumApplication *-- RVCSWController
+RobotVacuumApplication *-- RecordingDrivingDevice
+RobotVacuumApplication *-- RecordingCleaningDevice
+RobotVacuumApplication *-- AppTime
+RobotVacuumApplication ..> ControllerStateSnapshot : creates
+RobotVacuumApplication --> BackObstacleInput : accepts
+RecordingDrivingDevice ..|> DrivingDevice
+RecordingCleaningDevice ..|> CleaningDevice
+AppTime ..|> Time
+RecordingDrivingDevice --> DriveCommand : records
+RecordingCleaningDevice --> CleaningPowerState : records
+AppTime --> Duration : records
+ControllerStateSnapshot --> MovementStatus : reports
+ControllerStateSnapshot --> DriveCommand : reports
+ControllerStateSnapshot --> CleaningPowerState : reports
+
+SensorInput ..> RVCSWController : reports input to
+Time ..> RVCSWController : notifies timeout to
+
+RVCSWController *-- SensorState
+RVCSWController *-- AutomaticCleaning
+RVCSWController --> DrivingDevice : sends movement commands
+RVCSWController --> CleaningDevice : sends cleaning commands
+RVCSWController --> Time : starts timer
+
+AutomaticCleaning --> SensorState : reads
+AutomaticCleaning *-- DustResponse
+AutomaticCleaning ..> AvoidanceDecision : creates/updates
+AutomaticCleaning ..> MovementCommand : creates
+AutomaticCleaning ..> CleaningCommand : creates
+AutomaticCleaning ..> CommandResult : returns
+
+AutomaticCleaning --> MovementStatus : has
+CleaningPolicy --> CleaningPowerLevel : defines
+CleaningPolicy --> Duration : defines
+AvoidanceDecision --> AvoidanceDirection : selects
+AvoidanceDecision --> RightDirectionProbe : requests
+AvoidanceDecision --> SensorState : evaluates
+RightDirectionProbe --> SensorState : reads frontObstacleDetected
+RightDirectionProbe --> RightProbeResult : has
+CommandResult --> MovementCommand : ordered movement commands
+CommandResult --> CleaningCommand : optional
+CommandResult --> Duration : optional timer
+MovementCommand --> MovementCommandType : uses
+MovementCommand --> AvoidanceDirection : reflects
+CleaningCommand --> CleaningPowerLevel : uses
+DustResponse --> CleaningPolicy : uses
+DustResponse --> CleaningPowerLevel : keeps
+DustResponse --> Duration : keeps
+DrivingDevice ..> AvoidanceDirection : turns by
+
+@enduml

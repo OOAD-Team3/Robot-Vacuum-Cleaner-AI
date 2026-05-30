@@ -16,9 +16,9 @@ hide empty members
 package "External Interfaces" as ExternalInterfaces {
   interface "SensorInput" as SensorInput {
     +reportFrontObstacleState(frontObstacleDetected: boolean)
-    +reportBackObstacleState(backObstacleDetected: boolean)
+    +reportBackObstacleState(backObstacleDetected: BackObstacleInput)
     +reportLeftObstacleState(leftObstacleDetected: boolean)
-    +reportObstacleState(frontObstacleDetected: boolean, backObstacleDetected: boolean, leftObstacleDetected: boolean)
+    +reportObstacleState(frontObstacleDetected: boolean, backObstacleDetected: BackObstacleInput, leftObstacleDetected: boolean)
     +reportDustDetected()
   }
 
@@ -167,9 +167,9 @@ package "Application Controller" as ApplicationController {
     -sensorState: SensorState
     -automaticCleaning: AutomaticCleaning
     +reportFrontObstacleState(frontObstacleDetected: boolean)
-    +reportBackObstacleState(backObstacleDetected: boolean)
+    +reportBackObstacleState(backObstacleDetected: BackObstacleInput)
     +reportLeftObstacleState(leftObstacleDetected: boolean)
-    +reportObstacleState(frontObstacleDetected: boolean, backObstacleDetected: boolean, leftObstacleDetected: boolean)
+    +reportObstacleState(frontObstacleDetected: boolean, backObstacleDetected: BackObstacleInput, leftObstacleDetected: boolean)
     +reportDustDetected()
     +increasedPowerDurationExpired()
     -executeMovementCommand(command: MovementCommand)
@@ -181,6 +181,8 @@ package "Application Controller" as ApplicationController {
 package "Domain Model" as DomainModel {
   class "AutomaticCleaning" as AutomaticCleaning {
     -movementStatus: MovementStatus
+    -policy: CleaningPolicy
+    -rightDirectionProbe: RightDirectionProbe
     -dustResponse: DustResponse
     -dustResponsePending: boolean
     +handleSensorState(sensorState: SensorState): CommandResult
@@ -201,13 +203,13 @@ package "Domain Model" as DomainModel {
 
   class "SensorState" as SensorState {
     -frontObstacleDetected: boolean
-    -backObstacleDetected: boolean
+    -backObstacleDetected: optional<boolean>
     -leftObstacleDetected: boolean
     -dustDetected: boolean
     +updateFrontObstacle(frontObstacleDetected: boolean)
-    +updateBackObstacle(backObstacleDetected: boolean)
+    +updateBackObstacle(backObstacleDetected: BackObstacleInput)
     +updateLeftObstacle(leftObstacleDetected: boolean)
-    +updateObstacles(frontObstacleDetected: boolean, backObstacleDetected: boolean, leftObstacleDetected: boolean)
+    +updateObstacles(frontObstacleDetected: boolean, backObstacleDetected: BackObstacleInput, leftObstacleDetected: boolean)
     +updateDustDetected(dustDetected: boolean)
     +isFrontObstacleDetected(): boolean
     +isBackObstacleDetected(): boolean
@@ -238,6 +240,7 @@ package "Domain Model" as DomainModel {
   class "RightDirectionProbe" as RightDirectionProbe {
     -active: boolean
     -result: RightProbeResult
+    -restoreOriginalHeadingRequired: boolean
   }
 
   class "DustResponse" as DustResponse {
@@ -397,6 +400,8 @@ RVCSWController --> CleaningDevice : sends cleaning commands
 RVCSWController --> Time : starts timer
 
 AutomaticCleaning --> SensorState : reads
+AutomaticCleaning *-- CleaningPolicy
+AutomaticCleaning *-- RightDirectionProbe
 AutomaticCleaning *-- DustResponse
 AutomaticCleaning ..> AvoidanceDecision : creates/updates
 AutomaticCleaning ..> MovementCommand : creates
@@ -417,7 +422,6 @@ CommandResult --> Duration : optional timer
 MovementCommand --> MovementCommandType : uses
 MovementCommand --> AvoidanceDirection : reflects
 CleaningCommand --> CleaningPowerLevel : uses
-DustResponse --> CleaningPolicy : uses
 DustResponse --> CleaningPowerLevel : keeps
 DustResponse --> Duration : keeps
 DrivingDevice ..> AvoidanceDirection : turns by

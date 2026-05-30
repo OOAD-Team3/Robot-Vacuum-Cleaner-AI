@@ -1,0 +1,63 @@
+' SD-03. UC-003 좌측 센서와 우측 90도 회전 탐색으로 회피 방향 선택
+' Related Use Case: UC-003. 좌측 센서와 우측 90도 회전 탐색으로 회피 방향 선택
+' Intent: 좌측 센서와 우측 90도 회전 후 전방 센서 확인으로 좌회전 또는 우회전 회피를 결정하는 흐름을 표현한다.
+' Note: 우측 탐색 결과가 이동 가능하고 우측 회피를 수행할 수 있으면 원래 정면 방향으로 복귀하지 않고 현재 자세로 UC-004에 전환한다.
+
+@startuml SD_03_UC003_Select_Avoidance_Direction_Without_Right_Sensor
+hide footbox
+title SD-03 - UC-003 좌측 센서와 우측 90도 회전 탐색으로 회피 방향 선택
+
+actor "센서 입력" as Sensor
+participant "RVC SW Controller" as Controller
+participant "SensorState" as SensorState
+participant "AutomaticCleaning" as Cleaning
+participant "AvoidanceDecision" as AvoidanceDecision
+participant "MovementCommand" as MovementCommand
+actor "주행 장치" as Drive
+
+Sensor -> Controller: reportLeftObstacleState(leftObstacleDetected)
+activate Controller
+Controller -> SensorState: updateLeftObstacle(leftObstacleDetected)
+Controller -> Cleaning: selectAvoidanceDirection(SensorState)
+activate Cleaning
+note right of Cleaning: 좌측 장애물 상태를 먼저 확인하고,\n좌측이 막힌 경우에만 우측 탐색을 요청한다.
+
+alt 좌측 이동 가능
+    Cleaning -> AvoidanceDecision: select(LEFT)
+    AvoidanceDecision --> Cleaning: selectedDirection=LEFT
+    Cleaning -> MovementCommand: create(TURN_LEFT)
+    MovementCommand --> Cleaning: turnLeftCommand
+    Cleaning --> Controller: commandResult(turnLeftCommand)
+    Controller -> Drive: turnLeft()
+else 좌측 막힘으로 우측 탐색 필요
+    Cleaning -> MovementCommand: create(TURN_RIGHT)
+    MovementCommand --> Cleaning: turnRightForProbeCommand
+    Cleaning --> Controller: commandResult(turnRightForProbeCommand)
+    Controller -> Drive: turnRight()
+
+    Sensor -> Controller: reportFrontObstacleState(frontObstacleDetected)
+    Controller -> SensorState: updateFrontObstacle(frontObstacleDetected)
+    Controller -> Cleaning: selectAvoidanceDirection(SensorState)
+    note right of Cleaning: 우측 탐색 회전 후 전방 센서값으로\n기존 우측 방향의 개방 여부를 판단한다.
+
+    alt 기존 우측 방향 이동 가능
+        Cleaning -> AvoidanceDecision: select(RIGHT)
+        AvoidanceDecision --> Cleaning: selectedDirection=RIGHT
+        Cleaning --> Controller: avoidanceDecision(selectedDirection=RIGHT)
+        note right of Controller: 우측 탐색 회전 자세를 유지한 채 UC-004로 전환
+    else 기존 우측 방향 막힘
+        Cleaning -> MovementCommand: create(TURN_LEFT)
+        MovementCommand --> Cleaning: returnToOriginalHeadingCommand
+        Cleaning --> Controller: commandResult(returnToOriginalHeadingCommand)
+        Controller -> Drive: turnLeft()
+        Cleaning -> AvoidanceDecision: markBackwardRequired()
+        AvoidanceDecision --> Cleaning: backwardRequired=true
+        Cleaning -> Cleaning: changeMovementStatus(BLOCKED)
+        Cleaning --> Controller: noAvailableDirection()
+        note right of Cleaning: UC-005로 전환
+    end
+end
+
+deactivate Cleaning
+deactivate Controller
+@enduml

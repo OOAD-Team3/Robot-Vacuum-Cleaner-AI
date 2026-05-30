@@ -1,0 +1,99 @@
+' SD-05. UC-005 전방·좌측·우측 방향이 모두 막힌 경우 후진 - 우측 센서 제거 버전
+' Related Use Case: UC-005. 전방·좌측·우측 방향이 모두 막힌 경우 후진
+' Intent: 전방, 좌측, 기존 우측 방향이 모두 막힌 상태에서 후방 장애물 여부를 확인하고 후진 또는 정지로 분기하는 흐름을 표현한다.
+' Note: 기존 우측 방향은 우측 센서가 아니라 UC-003의 우측 90도 회전 탐색 또는 후진 후 탐색으로 확인한다.
+
+@startuml SD_05_UC005_Backward_On_Three_Side_Obstacle_Without_Right_Sensor
+hide footbox
+title SD-05 - UC-005 전방·좌측·우측 방향이 모두 막힌 경우 후진 - 우측 센서 제거
+
+actor "센서 입력" as Sensor
+participant "RVC SW Controller" as Controller
+participant "SensorState" as SensorState
+participant "AutomaticCleaning" as Cleaning
+participant "MovementCommand" as MovementCommand
+participant "AvoidanceDecision" as AvoidanceDecision
+actor "주행 장치" as Drive
+
+alt 후진 가능
+    note right of Controller: UC-003에서 전방, 좌측, 기존 우측 방향이 모두 막힘으로 확인됨
+    Sensor -> Controller: reportBackObstacleState(backObstacleDetected=false)
+    activate Controller
+    Controller -> SensorState: updateBackObstacle(backObstacleDetected=false)
+    Controller -> Cleaning: handleThreeSideObstacle(SensorState)
+    activate Cleaning
+    note right of Cleaning: UC-003에서 전방, 좌측, 기존 우측 방향이\n모두 막힌 것으로 확인된 상태를 처리한다.
+    Cleaning -> Cleaning: changeMovementStatus(BLOCKED)
+    Cleaning -> MovementCommand: create(STOP)
+    MovementCommand --> Cleaning: stopCommand
+    Cleaning --> Controller: commandResult(stopCommand)
+    Controller -> Drive: stop()
+    Cleaning -> SensorState: canMoveBackward()
+    SensorState --> Cleaning: true
+    Cleaning -> MovementCommand: create(MOVE_BACKWARD)
+    MovementCommand --> Cleaning: backwardCommand
+    Cleaning --> Controller: commandResult(backwardCommand)
+    Controller -> Drive: moveBackward()
+    Drive --> Controller: backwardCompleted()
+
+    Sensor -> Controller: reportLeftObstacleState(leftObstacleDetected)
+    Controller -> SensorState: updateLeftObstacle(leftObstacleDetected)
+    Controller -> Cleaning: selectAvoidanceDirection(SensorState)
+
+    alt 후진 후 좌측 이동 가능
+        Cleaning -> AvoidanceDecision: select(LEFT)
+        AvoidanceDecision --> Cleaning: selectedDirection=LEFT
+        Cleaning -> MovementCommand: create(TURN_LEFT)
+        MovementCommand --> Cleaning: turnLeftCommand
+        Cleaning --> Controller: commandResult(turnLeftCommand)
+        Controller -> Drive: turnLeft()
+        note right of Cleaning: UC-004로 전환
+    else 후진 후 좌측 막힘으로 우측 탐색 필요
+        Cleaning -> MovementCommand: create(TURN_RIGHT)
+        MovementCommand --> Cleaning: turnRightForProbeCommand
+        Cleaning --> Controller: commandResult(turnRightForProbeCommand)
+        Controller -> Drive: turnRight()
+
+        Sensor -> Controller: reportFrontObstacleState(frontObstacleDetected)
+        Controller -> SensorState: updateFrontObstacle(frontObstacleDetected)
+        Controller -> Cleaning: selectAvoidanceDirection(SensorState)
+        note right of Cleaning: 우측 탐색 회전 후 전방 센서값으로\n기존 우측 방향의 개방 여부를 판단한다.
+
+        alt 후진 후 기존 우측 방향 이동 가능
+            Cleaning -> AvoidanceDecision: select(RIGHT)
+            AvoidanceDecision --> Cleaning: selectedDirection=RIGHT
+            Cleaning --> Controller: avoidanceDecision(selectedDirection=RIGHT)
+            note right of Controller: 우측 탐색 회전 자세를 유지한 채 UC-004로 전환
+        else 후진 후 기존 우측 방향 막힘
+            Cleaning -> MovementCommand: create(TURN_LEFT)
+            MovementCommand --> Cleaning: returnToOriginalHeadingCommand
+            Cleaning --> Controller: commandResult(returnToOriginalHeadingCommand)
+            Controller -> Drive: turnLeft()
+            Cleaning -> AvoidanceDecision: markBackwardRequired()
+            AvoidanceDecision --> Cleaning: backwardRequired=true
+            Cleaning -> Cleaning: changeMovementStatus(BLOCKED)
+            Cleaning --> Controller: stillBlocked()
+            note right of Cleaning: 정지 상태 유지 또는 추가 후진 판단
+        end
+    end
+else 후진 불가
+    note right of Controller: UC-003에서 전방, 좌측, 기존 우측 방향이 모두 막힘으로 확인됨
+    Sensor -> Controller: reportBackObstacleState(backObstacleDetected=true)
+    activate Controller
+    Controller -> SensorState: updateBackObstacle(backObstacleDetected=true)
+    Controller -> Cleaning: handleThreeSideObstacle(SensorState)
+    activate Cleaning
+    note right of Cleaning: UC-003에서 전방, 좌측, 기존 우측 방향이\n모두 막힌 것으로 확인된 상태를 처리한다.
+    Cleaning -> SensorState: canMoveBackward()
+    SensorState --> Cleaning: false
+    Cleaning -> MovementCommand: create(STOP)
+    MovementCommand --> Cleaning: stopCommand
+    Cleaning -> Cleaning: changeMovementStatus(STOPPED)
+    Cleaning --> Controller: commandResult(stopCommand)
+    Controller -> Drive: stop()
+end
+
+Cleaning --> Controller: threeSideObstacleHandled()
+deactivate Cleaning
+deactivate Controller
+@enduml

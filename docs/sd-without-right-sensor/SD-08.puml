@@ -1,0 +1,96 @@
+' SD-08. UC-008 TCP 명령 인터페이스로 컨트롤러 구동 및 상태 조회 - 우측 센서 제거 설계 버전
+' Related Use Case: UC-008. TCP 명령 인터페이스로 컨트롤러 구동 및 상태 조회
+' Intent: 외부 시뮬레이터/시스템 테스트 클라이언트의 line-based command가 TCP/Protocol adapter를 거쳐 우측 센서 없는 컨트롤러 입력과 상태 조회로 변환되는 흐름을 표현한다.
+' Note: 이 설계 버전은 RIGHT 직접 센서 입력을 제거한다. 기존 우측 방향은 UC-003/UC-005에서 우측 90도 회전 후 전방 센서 입력으로 확인한다.
+
+@startuml SD_08_UC008_TCP_Command_Interface_Without_Right_Sensor
+hide footbox
+title SD-08 - UC-008 TCP 명령 인터페이스 - 우측 센서 제거
+
+actor "시뮬레이터/\n시스템 테스트 클라이언트" as Client
+participant "TcpServer" as TcpServer
+participant "CommandHandler" as Handler
+participant "CommandParser" as Parser
+participant "RobotVacuumApplication" as App
+participant "RVCSWController" as Controller
+participant "StateFormatter" as Formatter
+
+Client -> TcpServer: newline-terminated command
+activate TcpServer
+
+alt command line exceeds 1024 bytes
+    TcpServer --> Client: ERR INVALID_ARGUMENT
+    TcpServer -> Client: close session
+else command line accepted
+    TcpServer -> Handler: handleLine(line)
+    activate Handler
+    Handler -> Parser: parse(line)
+    activate Parser
+    Parser --> Handler: ParseResult
+    deactivate Parser
+
+    alt parse failure
+        Handler --> TcpServer: CommandResponse(ERR UNKNOWN_COMMAND or ERR INVALID_ARGUMENT)
+    else front sensor command
+        Handler -> App: setFrontObstacle(frontObstacleDetected)
+        activate App
+        App -> Controller: reportFrontObstacleState(frontObstacleDetected)
+        Controller --> App: device commands recorded
+        deactivate App
+        Handler --> TcpServer: CommandResponse(OK SET_FRONT)
+    else back sensor command
+        Handler -> App: setBackObstacle(backObstacleDetected)
+        activate App
+        App -> Controller: reportBackObstacleState(backObstacleDetected)
+        Controller --> App: device commands recorded
+        deactivate App
+        Handler --> TcpServer: CommandResponse(OK SET_BACK)
+    else left sensor command
+        Handler -> App: setLeftObstacle(leftObstacleDetected)
+        activate App
+        App -> Controller: reportLeftObstacleState(leftObstacleDetected)
+        Controller --> App: device commands recorded
+        deactivate App
+        Handler --> TcpServer: CommandResponse(OK SET_LEFT)
+    else combined sensor command without right input
+        Handler -> App: setObstacleState(frontObstacleDetected, backObstacleDetected, leftObstacleDetected)
+        activate App
+        App -> Controller: reportObstacleState(frontObstacleDetected, backObstacleDetected, leftObstacleDetected)
+        Controller --> App: device commands recorded
+        deactivate App
+        Handler --> TcpServer: CommandResponse(OK SET_OBSTACLES)
+        note right of Controller: 기존 우측 방향은 RIGHT 입력이 아니라\n우측 90도 회전 후 FRONT 입력으로 확인
+    else dust command
+        Handler -> App: reportDustDetected()
+        activate App
+        App -> Controller: reportDustDetected()
+        Controller --> App: cleaning command and timer recorded
+        deactivate App
+        Handler --> TcpServer: CommandResponse(OK DUST_DETECTED)
+    else power timeout command
+        Handler -> App: expirePowerTimer()
+        activate App
+        App -> Controller: increasedPowerDurationExpired()
+        Controller --> App: cleaning command recorded
+        deactivate App
+        Handler --> TcpServer: CommandResponse(OK POWER_TIMEOUT or ERR INVALID_STATE)
+    else state query
+        Handler -> App: snapshot()
+        App --> Handler: ControllerStateSnapshot
+        Handler -> Formatter: format(snapshot)
+        Formatter --> Handler: OK STATE ...
+        Handler --> TcpServer: CommandResponse(OK STATE ...)
+        note right of Formatter: 상태 응답은 RIGHT 직접 센서값 대신\n전방/후방/좌측과 최근 주행 명령을 제공
+    else reset command
+        Handler -> App: reset()
+        Handler --> TcpServer: CommandResponse(OK RESET)
+    else quit command
+        Handler --> TcpServer: CommandResponse(OK BYE, closeSession=true)
+    end
+    deactivate Handler
+
+    TcpServer --> Client: response line
+end
+
+deactivate TcpServer
+@enduml

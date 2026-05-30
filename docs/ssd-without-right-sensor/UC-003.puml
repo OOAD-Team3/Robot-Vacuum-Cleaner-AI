@@ -12,12 +12,12 @@ activate System
 alt left open
     System -> Drive: turnLeft()
     note right of System: Left avoidance is selected first;\nright probe is not performed.
-else left blocked
+else left blocked and right probe front clear
     System -> Drive: turnRight90()
     Sensor -> System: reportFrontObstacleState(frontObstacleDetected=false)
     note right of System: Previous right direction is open;\nuse current heading as right avoidance.
     note right of System: Continue with UC-004.
-else left blocked and previous right direction blocked
+else left blocked and right probe front blocked
     System -> Drive: turnRight90()
     Sensor -> System: reportFrontObstacleState(frontObstacleDetected=true)
     System -> Drive: turnLeft90()

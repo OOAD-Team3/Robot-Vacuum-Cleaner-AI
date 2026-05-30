@@ -1,0 +1,64 @@
+@startuml RVC_Use_Case_Diagram_Without_Right_Sensor
+title RVC SW Controller Use Case Diagram - Without Right Sensor
+
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam linetype ortho
+
+actor "센서 입력" as Sensor
+actor "Time" as Time
+actor "주행 장치" as Drive
+actor "청소 장치" as Cleaner
+actor "시뮬레이터/\n시스템 테스트\n클라이언트" as Simulator
+
+rectangle "RVC SW Controller System" as System {
+  usecase "UC-001\n장애물이 없을 때\n직진 청소" as UC001
+  usecase "UC-002\n전방 장애물 감지 후\n정지" as UC002
+  usecase "UC-003\n좌측 센서와 우측 90도\n회전 탐색으로\n회피 방향 선택" as UC003
+  usecase "UC-004\n방향 전환 후\n청소 재개" as UC004
+  usecase "UC-005\n전방·좌측·우측 방향이\n모두 막힌 경우\n후진" as UC005
+  usecase "UC-006\n먼지 감지 이벤트 처리" as UC006
+  usecase "UC-007\n청소 출력 일반 상태\n복귀" as UC007
+  usecase "UC-008\nTCP 명령 인터페이스로\n컨트롤러 구동 및\n상태 조회" as UC008
+
+  UC001 -[hidden]d-> UC002
+  UC002 -[hidden]d-> UC003
+  UC003 -[hidden]d-> UC004
+  UC004 -[hidden]d-> UC005
+  UC005 -[hidden]d-> UC006
+  UC006 -[hidden]d-> UC007
+  UC007 -[hidden]d-> UC008
+}
+
+Sensor -[hidden]d-> Time
+Drive -[hidden]d-> Cleaner
+Cleaner -[hidden]d-> Simulator
+
+Sensor -l-> UC001
+Sensor -l-> UC002
+Sensor -l-> UC003
+Sensor -l-> UC004
+Sensor -l-> UC005
+Sensor -l-> UC006
+Time -l-> UC007
+Simulator -r-> UC008
+
+UC001 -l-> Drive
+UC002 -l-> Drive
+UC003 -l-> Drive
+UC004 -l-> Drive
+UC005 -l-> Drive
+
+UC001 -l-> Cleaner
+UC004 -l-> Cleaner
+UC006 -l-> Cleaner
+UC007 -l-> Cleaner
+
+UC008 ..> UC001 : triggers/observes
+UC008 ..> UC002 : triggers/observes
+UC008 ..> UC003 : triggers/observes
+UC008 ..> UC005 : triggers/observes
+UC008 ..> UC006 : triggers/observes
+UC008 ..> UC007 : triggers/observes
+
+@enduml

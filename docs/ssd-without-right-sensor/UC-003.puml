@@ -1,0 +1,28 @@
+@startuml SSD_UC003_Select_Avoidance_Direction_Without_Right_Sensor
+hide footbox
+title SSD - UC-003 Select Avoidance Direction - Without Right Sensor
+
+actor "Sensor Input" as Sensor
+participant "RVC SW Controller" as System
+actor "Driving Device" as Drive
+
+Sensor -> System: reportLeftObstacleState(leftObstacleDetected)
+activate System
+
+alt left open
+    System -> Drive: turnLeft()
+    note right of System: Left avoidance is selected first;\nright probe is not performed.
+else left blocked and right probe front clear
+    System -> Drive: turnRight90()
+    Sensor -> System: reportFrontObstacleState(frontObstacleDetected=false)
+    note right of System: Previous right direction is open;\nuse current heading as right avoidance.
+    note right of System: Continue with UC-004.
+else left blocked and right probe front blocked
+    System -> Drive: turnRight90()
+    Sensor -> System: reportFrontObstacleState(frontObstacleDetected=true)
+    System -> Drive: turnLeft90()
+    note right of System: Return to original heading.
+    note right of System: Continue with UC-005.
+end
+deactivate System
+@enduml

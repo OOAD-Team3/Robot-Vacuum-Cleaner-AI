@@ -1,0 +1,32 @@
+@startuml SSD_UC004_Resume_After_Turn_Without_Right_Sensor
+hide footbox
+title SSD - UC-004 Resume Cleaning After Direction Change - Without Right Sensor
+
+actor "Sensor Input" as Sensor
+participant "RVC SW Controller" as System
+actor "Driving Device" as Drive
+actor "Cleaning Device" as Cleaner
+
+Sensor -> System: reportFrontObstacleState(frontObstacleDetected=false)
+activate System
+
+alt right probe heading is used as completed avoidance
+    note right of System: UC-003 or UC-005 found previous right direction open;\nresume without return turn.
+else left avoidance turn completed
+    note right of System: Left avoidance direction change is completed.
+end
+
+System -> Drive: moveForward()
+
+alt dust response is active
+    System -> Cleaner: keepCleaningPower(increased)
+else normal cleaning
+    System -> Cleaner: setCleaningPower(normal)
+end
+
+alt front obstacle detected again
+    Sensor -> System: reportFrontObstacleState(frontObstacleDetected=true)
+    note right of System: Continue with UC-003;\ncheck left first and probe right only if left is blocked.
+end
+deactivate System
+@enduml

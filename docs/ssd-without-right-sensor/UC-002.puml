@@ -1,0 +1,25 @@
+@startuml SSD_UC002_Stop_On_Front_Obstacle_Without_Right_Sensor
+hide footbox
+title SSD - UC-002 Stop After Front Obstacle Detection - Without Right Sensor
+
+actor "Sensor Input" as Sensor
+participant "RVC SW Controller" as System
+actor "Driving Device" as Drive
+
+Sensor -> System: reportFrontObstacleState(frontObstacleDetected=true)
+activate System
+System -> Drive: stop()
+
+alt left avoidance available
+    Sensor -> System: reportLeftObstacleState(leftObstacleDetected=false)
+    note right of System: Continue with UC-003;\nleft avoidance is selected first.
+else left blocked and previous right direction also blocked
+    Sensor -> System: reportLeftObstacleState(leftObstacleDetected=true)
+    note right of System: UC-003 checks previous right direction\nby turnRight90 and front sensor.
+    note right of System: Continue with UC-005.
+else dust detected while stopped
+    Sensor -> System: reportDustDetected()
+    note right of System: Obstacle avoidance remains priority.
+end
+deactivate System
+@enduml

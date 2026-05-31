@@ -1,0 +1,103 @@
+@startuml RVC_Domain_Model_Without_Right_Sensor
+title RVC SW Controller Domain Model - Without Right Sensor
+
+skinparam classAttributeIconSize 0
+hide methods
+
+class "Automatic Cleaning" as AutomaticCleaning {
+  movementStatus
+}
+
+class "Sensor State" as SensorState {
+  frontObstacleDetected
+  backObstacleDetected
+  leftObstacleDetected
+  dustDetected
+}
+
+class "Cleaning Policy" as CleaningPolicy {
+  increasedPowerLevel
+  increasedPowerDuration
+}
+
+class "Avoidance Decision" as AvoidanceDecision {
+  selectedDirection
+  rightProbeRequired
+  backwardRequired
+}
+
+class "Right Direction Probe" as RightDirectionProbe {
+  active
+  result
+}
+
+class "Dust Response" as DustResponse {
+  active
+  powerLevel
+  duration
+}
+
+class "Movement Command" as MovementCommand {
+  commandType
+}
+
+class "Cleaning Command" as CleaningCommand {
+  powerLevel
+}
+
+enum "Movement Status" as MovementStatus {
+  CLEANING
+  AVOIDING_OBSTACLE
+  BLOCKED
+  STOPPED
+}
+
+enum "Movement Command Type" as MovementCommandType {
+  MOVE_FORWARD
+  MOVE_BACKWARD
+  TURN_LEFT
+  TURN_RIGHT
+  STOP
+}
+
+enum "Cleaning Power Level" as CleaningPowerLevel {
+  NORMAL
+  INCREASED
+}
+
+enum "Avoidance Direction" as AvoidanceDirection {
+  LEFT
+  RIGHT
+}
+
+enum "Right Probe Result" as RightProbeResult {
+  UNKNOWN
+  OPEN
+  BLOCKED
+}
+
+AutomaticCleaning "1" --> "1" SensorState : reads
+AutomaticCleaning "1" --> "0..*" MovementCommand : issues
+AutomaticCleaning "1" --> "0..*" CleaningCommand : issues
+AutomaticCleaning "1" --> "1" MovementStatus : has
+
+SensorState "1" --> "0..1" AvoidanceDecision : triggers
+SensorState "1" --> "0..1" DustResponse : triggers
+
+CleaningPolicy "1" --> "1" CleaningPowerLevel : defines
+
+AvoidanceDecision "1" --> "0..1" AvoidanceDirection : selects
+AvoidanceDecision "1" --> "0..1" RightDirectionProbe : requests
+AvoidanceDecision "1" --> "1..*" MovementCommand : produces
+
+RightDirectionProbe "1" --> "1" SensorState : reads frontObstacleDetected
+RightDirectionProbe "1" --> "1" RightProbeResult : has
+
+DustResponse "1" --> "1" CleaningPolicy : uses
+DustResponse "1" --> "1..*" CleaningCommand : produces
+
+MovementCommand "1" --> "1" MovementCommandType : uses
+MovementCommand "0..*" --> "0..1" AvoidanceDirection : reflects
+CleaningCommand "1" --> "1" CleaningPowerLevel : uses
+
+@enduml

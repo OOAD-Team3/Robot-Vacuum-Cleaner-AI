@@ -11,6 +11,7 @@ actor "센서 입력" as Sensor
 participant "RVC SW Controller" as Controller
 participant "SensorState" as SensorState
 participant "AutomaticCleaning" as Cleaning
+participant "RightDirectionProbe" as RightProbe
 participant "MovementCommand" as MovementCommand
 participant "AvoidanceDecision" as AvoidanceDecision
 actor "주행 장치" as Drive
@@ -33,12 +34,14 @@ alt 후진 가능
     Cleaning -> MovementCommand: create(MOVE_BACKWARD)
     MovementCommand --> Cleaning: backwardCommand
     Cleaning --> Controller: commandResult(backwardCommand)
+    deactivate Cleaning
     Controller -> Drive: moveBackward()
     Drive --> Controller: backwardCompleted()
 
     Sensor -> Controller: reportLeftObstacleState(leftObstacleDetected)
     Controller -> SensorState: updateLeftObstacle(leftObstacleDetected)
     Controller -> Cleaning: selectAvoidanceDirection(SensorState)
+    activate Cleaning
 
     alt 후진 후 좌측 이동 가능
         Cleaning -> AvoidanceDecision: select(LEFT)
@@ -49,26 +52,40 @@ alt 후진 가능
         Controller -> Drive: turnLeft()
         note right of Cleaning: UC-004로 전환
     else 후진 후 좌측 막힘으로 우측 탐색 필요
+        Cleaning -> RightProbe: active=true
+        Cleaning -> RightProbe: result=UNKNOWN
+        Cleaning -> RightProbe: restoreOriginalHeadingRequired=false
         Cleaning -> MovementCommand: create(TURN_RIGHT)
         MovementCommand --> Cleaning: turnRightForProbeCommand
         Cleaning --> Controller: commandResult(turnRightForProbeCommand)
+        deactivate Cleaning
         Controller -> Drive: turnRight()
 
         Sensor -> Controller: reportFrontObstacleState(frontObstacleDetected)
         Controller -> SensorState: updateFrontObstacle(frontObstacleDetected)
         Controller -> Cleaning: selectAvoidanceDirection(SensorState)
+        activate Cleaning
+        Cleaning -> RightProbe: active?
+        RightProbe --> Cleaning: true
+        Cleaning -> SensorState: isFrontObstacleDetected()
+        SensorState --> Cleaning: frontObstacleDetected
         note right of Cleaning: 우측 탐색 회전 후 전방 센서값으로\n기존 우측 방향의 개방 여부를 판단한다.
 
         alt 후진 후 기존 우측 방향 이동 가능
+            Cleaning -> RightProbe: result=OPEN
+            Cleaning -> RightProbe: active=false
             Cleaning -> AvoidanceDecision: select(RIGHT)
             AvoidanceDecision --> Cleaning: selectedDirection=RIGHT
             Cleaning --> Controller: avoidanceDecision(selectedDirection=RIGHT)
             note right of Controller: 우측 탐색 회전 자세를 유지한 채 UC-004로 전환
         else 후진 후 기존 우측 방향 막힘
+            Cleaning -> RightProbe: result=BLOCKED
+            Cleaning -> RightProbe: restoreOriginalHeadingRequired=true
             Cleaning -> MovementCommand: create(TURN_LEFT)
             MovementCommand --> Cleaning: returnToOriginalHeadingCommand
             Cleaning --> Controller: commandResult(returnToOriginalHeadingCommand)
             Controller -> Drive: turnLeft()
+            Cleaning -> RightProbe: active=false
             Cleaning -> AvoidanceDecision: markBackwardRequired()
             AvoidanceDecision --> Cleaning: backwardRequired=true
             Cleaning -> Cleaning: changeMovementStatus(BLOCKED)
@@ -76,11 +93,11 @@ alt 후진 가능
             note right of Cleaning: 정지 상태 유지 또는 추가 후진 판단
         end
     end
-else 후진 불가
+else 후진 불가 또는 후방 상태 불명
     note right of Controller: UC-003에서 전방, 좌측, 기존 우측 방향이 모두 막힘으로 확인됨
-    Sensor -> Controller: reportBackObstacleState(backObstacleDetected=true)
+    Sensor -> Controller: reportBackObstacleState(backObstacleDetected=true or UNKNOWN)
     activate Controller
-    Controller -> SensorState: updateBackObstacle(backObstacleDetected=true)
+    Controller -> SensorState: updateBackObstacle(backObstacleDetected=true or UNKNOWN)
     Controller -> Cleaning: handleThreeSideObstacle(SensorState)
     activate Cleaning
     note right of Cleaning: UC-003에서 전방, 좌측, 기존 우측 방향이\n모두 막힌 것으로 확인된 상태를 처리한다.

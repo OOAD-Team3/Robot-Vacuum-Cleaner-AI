@@ -2,6 +2,7 @@
 
 #include <string>
 
+#include "rvc/Types.hpp"
 #include "rvc/protocol/CommandParser.hpp"
 #include "rvc/protocol/StateFormatter.hpp"
 #include "rvc/sim/RobotVacuumApplication.hpp"
@@ -28,7 +29,7 @@ public:
 
 private:
     CommandResponse handleParsedCommand(const ParsedCommand& command);
-    sim::BackObstacleInput toApplicationBackValue(BackObstacleValue value) const;
+    rvc::BackObstacleInput toApplicationBackValue(BackObstacleValue value) const;
     CommandResponse response(std::string text, bool closeSession = false) const;
 
     sim::RobotVacuumApplication& application_;

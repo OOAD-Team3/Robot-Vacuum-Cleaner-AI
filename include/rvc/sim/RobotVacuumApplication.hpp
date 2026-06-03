@@ -4,16 +4,11 @@
 #include <optional>
 
 #include "rvc/RVCSWController.hpp"
+#include "rvc/Types.hpp"
 #include "rvc/sim/ControllerStateSnapshot.hpp"
 #include "rvc/sim/RecordingDevices.hpp"
 
 namespace rvc::sim {
-
-enum class BackObstacleInput {
-    Clear,
-    Blocked,
-    Unknown
-};
 
 class RobotVacuumApplication {
 public:
@@ -21,11 +16,11 @@ public:
 
     void reset();
     void setFrontObstacle(bool detected);
-    void setBackObstacle(BackObstacleInput detected);
+    void setBackObstacle(rvc::BackObstacleInput detected);
     void setLeftObstacle(bool detected);
     void setObstacleState(
         bool frontDetected,
-        BackObstacleInput backDetected,
+        rvc::BackObstacleInput backDetected,
         bool leftDetected);
     void reportDustDetected();
     bool expirePowerTimer();
@@ -34,7 +29,7 @@ public:
 
 private:
     void createController();
-    std::optional<bool> toOptionalBackState(BackObstacleInput detected) const;
+    std::optional<bool> toOptionalBackState(rvc::BackObstacleInput detected) const;
 
     RecordingDrivingDevice drivingDevice_;
     RecordingCleaningDevice cleaningDevice_;

@@ -150,7 +150,7 @@ TEST_F(RVCSWControllerTest, UC002StopsWhenFrontObstacleIsDetected) {
 }
 
 TEST_F(RVCSWControllerTest, UC002CombinedObstacleSnapshotStopsOnFrontObstacle) {
-    controller.reportObstacleState(true, false);
+    controller.reportObstacleState(true, rvc::BackObstacleInput::Unknown, false);
 
     EXPECT_EQ(drive.calls, std::vector<std::string>{"stop"});
     EXPECT_TRUE(cleaner.calls.empty());
@@ -199,7 +199,7 @@ TEST_F(RVCSWControllerTest, UC003LeftOnlyReportDoesNotResolveActiveRightProbe) {
 TEST_F(RVCSWControllerTest, UC003FrontLeftSnapshotStartsRightProbeDuringAvoidance) {
     enterAvoidance();
 
-    controller.reportObstacleState(true, true);
+    controller.reportObstacleState(true, rvc::BackObstacleInput::Unknown, true);
 
     EXPECT_EQ(drive.calls, std::vector<std::string>{"turnRight"});
     EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
@@ -218,7 +218,7 @@ TEST_F(RVCSWControllerTest, UC003RightProbeOpenResumesWithoutReturningToOriginal
 TEST_F(RVCSWControllerTest, UC003RightProbeOpenSnapshotResumesWithoutReturningToOriginalHeading) {
     startRightProbe();
 
-    controller.reportObstacleState(false, true);
+    controller.reportObstacleState(false, rvc::BackObstacleInput::Unknown, true);
 
     EXPECT_EQ(cleaner.calls, std::vector<std::string>{"setNormal"});
     EXPECT_EQ(drive.calls, std::vector<std::string>{"moveForward"});
@@ -238,7 +238,7 @@ TEST_F(RVCSWControllerTest, UC003RightProbeBlockedReturnsToOriginalHeadingAndWai
 TEST_F(RVCSWControllerTest, UC005StopsWhenBackStateIsUnknownAfterRightProbeBlocked) {
     confirmThreeSideBlocked();
 
-    controller.reportBackObstacleStateUnknown();
+    controller.reportBackObstacleState(rvc::BackObstacleInput::Unknown);
 
     EXPECT_EQ(drive.calls, std::vector<std::string>{"stop"});
     EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Blocked);
@@ -247,7 +247,7 @@ TEST_F(RVCSWControllerTest, UC005StopsWhenBackStateIsUnknownAfterRightProbeBlock
 TEST_F(RVCSWControllerTest, UC005CombinedSnapshotWithUnknownBackStopsAfterRightProbeBlocked) {
     confirmThreeSideBlocked();
 
-    controller.reportObstacleState(true, true);
+    controller.reportObstacleState(true, rvc::BackObstacleInput::Unknown, true);
 
     EXPECT_EQ(drive.calls, std::vector<std::string>{"stop"});
     EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Blocked);
@@ -256,7 +256,7 @@ TEST_F(RVCSWControllerTest, UC005CombinedSnapshotWithUnknownBackStopsAfterRightP
 TEST_F(RVCSWControllerTest, UC005StopsAndMovesBackwardWhenBackIsClearAfterRightProbeBlocked) {
     confirmThreeSideBlocked();
 
-    controller.reportBackObstacleState(false);
+    controller.reportBackObstacleState(rvc::BackObstacleInput::Clear);
 
     EXPECT_EQ(drive.calls, (std::vector<std::string>{"stop", "moveBackward"}));
     EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Blocked);
@@ -264,10 +264,10 @@ TEST_F(RVCSWControllerTest, UC005StopsAndMovesBackwardWhenBackIsClearAfterRightP
 
 TEST_F(RVCSWControllerTest, UC005BackSensorClearAfterUnknownStopMovesBackwardWithoutRepeatingStop) {
     confirmThreeSideBlocked();
-    controller.reportBackObstacleStateUnknown();
+    controller.reportBackObstacleState(rvc::BackObstacleInput::Unknown);
     clearDeviceCalls();
 
-    controller.reportBackObstacleState(false);
+    controller.reportBackObstacleState(rvc::BackObstacleInput::Clear);
 
     EXPECT_EQ(drive.calls, std::vector<std::string>{"moveBackward"});
     EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Blocked);
@@ -276,7 +276,7 @@ TEST_F(RVCSWControllerTest, UC005BackSensorClearAfterUnknownStopMovesBackwardWit
 TEST_F(RVCSWControllerTest, UC005StopsWhenBackIsBlockedAfterRightProbeBlocked) {
     confirmThreeSideBlocked();
 
-    controller.reportBackObstacleState(true);
+    controller.reportBackObstacleState(rvc::BackObstacleInput::Blocked);
 
     EXPECT_EQ(drive.calls, std::vector<std::string>{"stop"});
     EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Stopped);
@@ -284,7 +284,7 @@ TEST_F(RVCSWControllerTest, UC005StopsWhenBackIsBlockedAfterRightProbeBlocked) {
 
 TEST_F(RVCSWControllerTest, UC005AfterBackwardUsesLeftSensorBeforeResuming) {
     confirmThreeSideBlocked();
-    controller.reportBackObstacleState(false);
+    controller.reportBackObstacleState(rvc::BackObstacleInput::Clear);
     clearDeviceCalls();
 
     controller.reportLeftObstacleState(false);
@@ -295,7 +295,7 @@ TEST_F(RVCSWControllerTest, UC005AfterBackwardUsesLeftSensorBeforeResuming) {
 
 TEST_F(RVCSWControllerTest, UC005AfterBackwardCanStartAnotherRightProbeWhenLeftIsStillBlocked) {
     confirmThreeSideBlocked();
-    controller.reportBackObstacleState(false);
+    controller.reportBackObstacleState(rvc::BackObstacleInput::Clear);
     clearDeviceCalls();
 
     controller.reportLeftObstacleState(true);
@@ -305,7 +305,7 @@ TEST_F(RVCSWControllerTest, UC005AfterBackwardCanStartAnotherRightProbeWhenLeftI
 }
 
 TEST_F(RVCSWControllerTest, BackSensorAloneDoesNotTriggerMovement) {
-    controller.reportBackObstacleState(false);
+    controller.reportBackObstacleState(rvc::BackObstacleInput::Clear);
 
     EXPECT_TRUE(drive.calls.empty());
     EXPECT_TRUE(cleaner.calls.empty());
@@ -324,7 +324,7 @@ TEST_F(RVCSWControllerTest, UC004ResumesForwardCleaningAfterTurnWhenFrontIsClear
 TEST_F(RVCSWControllerTest, UC004CombinedObstacleSnapshotResumesAfterAvoidance) {
     enterAvoidance();
 
-    controller.reportObstacleState(false, false);
+    controller.reportObstacleState(false, rvc::BackObstacleInput::Unknown, false);
 
     EXPECT_EQ(cleaner.calls, std::vector<std::string>{"setNormal"});
     EXPECT_EQ(drive.calls, std::vector<std::string>{"moveForward"});
@@ -398,7 +398,7 @@ TEST_F(RVCSWControllerTest, UC006KeepsIncreasedPowerWhenBackSensorCompletesThree
     controller.reportFrontObstacleState(true);
     clearDeviceCalls();
 
-    controller.reportBackObstacleState(false);
+    controller.reportBackObstacleState(rvc::BackObstacleInput::Clear);
 
     EXPECT_EQ(cleaner.calls, std::vector<std::string>{"keepIncreased"});
     EXPECT_EQ(drive.calls, (std::vector<std::string>{"stop", "moveBackward"}));

@@ -22,15 +22,9 @@ void RobotVacuumApplication::setFrontObstacle(bool detected) {
     controller_->reportFrontObstacleState(detected);
 }
 
-void RobotVacuumApplication::setBackObstacle(BackObstacleInput detected) {
+void RobotVacuumApplication::setBackObstacle(rvc::BackObstacleInput detected) {
     backObstacleDetected_ = toOptionalBackState(detected);
-
-    if (!backObstacleDetected_) {
-        controller_->reportBackObstacleStateUnknown();
-        return;
-    }
-
-    controller_->reportBackObstacleState(*backObstacleDetected_);
+    controller_->reportBackObstacleState(detected);
 }
 
 void RobotVacuumApplication::setLeftObstacle(bool detected) {
@@ -40,21 +34,13 @@ void RobotVacuumApplication::setLeftObstacle(bool detected) {
 
 void RobotVacuumApplication::setObstacleState(
     bool frontDetected,
-    BackObstacleInput backDetected,
+    rvc::BackObstacleInput backDetected,
     bool leftDetected) {
     frontObstacleDetected_ = frontDetected;
     backObstacleDetected_ = toOptionalBackState(backDetected);
     leftObstacleDetected_ = leftDetected;
 
-    if (backObstacleDetected_) {
-        controller_->reportObstacleState(
-            frontDetected,
-            *backObstacleDetected_,
-            leftDetected);
-        return;
-    }
-
-    controller_->reportObstacleState(frontDetected, leftDetected);
+    controller_->reportObstacleState(frontDetected, backDetected, leftDetected);
 }
 
 void RobotVacuumApplication::reportDustDetected() {
@@ -89,13 +75,13 @@ void RobotVacuumApplication::createController() {
     controller_ = std::make_unique<RVCSWController>(drivingDevice_, cleaningDevice_, time_);
 }
 
-std::optional<bool> RobotVacuumApplication::toOptionalBackState(BackObstacleInput detected) const {
+std::optional<bool> RobotVacuumApplication::toOptionalBackState(rvc::BackObstacleInput detected) const {
     switch (detected) {
-    case BackObstacleInput::Clear:
+    case rvc::BackObstacleInput::Clear:
         return false;
-    case BackObstacleInput::Blocked:
+    case rvc::BackObstacleInput::Blocked:
         return true;
-    case BackObstacleInput::Unknown:
+    case rvc::BackObstacleInput::Unknown:
         return std::nullopt;
     }
 

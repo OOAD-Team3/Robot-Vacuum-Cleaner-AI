@@ -68,17 +68,17 @@ CommandResponse CommandHandler::handleParsedCommand(const ParsedCommand& command
     return response("ERR UNKNOWN_COMMAND");
 }
 
-sim::BackObstacleInput CommandHandler::toApplicationBackValue(BackObstacleValue value) const {
+rvc::BackObstacleInput CommandHandler::toApplicationBackValue(BackObstacleValue value) const {
     switch (value) {
     case BackObstacleValue::Clear:
-        return sim::BackObstacleInput::Clear;
+        return rvc::BackObstacleInput::Clear;
     case BackObstacleValue::Blocked:
-        return sim::BackObstacleInput::Blocked;
+        return rvc::BackObstacleInput::Blocked;
     case BackObstacleValue::Unknown:
-        return sim::BackObstacleInput::Unknown;
+        return rvc::BackObstacleInput::Unknown;
     }
 
-    return sim::BackObstacleInput::Unknown;
+    return rvc::BackObstacleInput::Unknown;
 }
 
 CommandResponse CommandHandler::response(std::string text, bool closeSession) const {

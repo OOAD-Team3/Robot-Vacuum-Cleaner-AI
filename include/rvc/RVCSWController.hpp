@@ -4,11 +4,12 @@
 
 #include "rvc/AutomaticCleaning.hpp"
 #include "rvc/Devices.hpp"
+#include "rvc/SensorInput.hpp"
 #include "rvc/SensorState.hpp"
 
 namespace rvc {
 
-class RVCSWController {
+class RVCSWController : public SensorInput {
 public:
     RVCSWController(DrivingDevice& drivingDevice, CleaningDevice& cleaningDevice, Time& time);
     RVCSWController(
@@ -17,13 +18,14 @@ public:
         Time& time,
         AutomaticCleaning automaticCleaning);
 
-    void reportFrontObstacleState(bool frontObstacleDetected);
-    void reportBackObstacleState(bool backObstacleDetected);
-    void reportBackObstacleStateUnknown();
-    void reportLeftObstacleState(bool leftObstacleDetected);
-    void reportObstacleState(bool frontObstacleDetected, bool leftObstacleDetected);
-    void reportObstacleState(bool frontObstacleDetected, bool backObstacleDetected, bool leftObstacleDetected);
-    void reportDustDetected();
+    void reportFrontObstacleState(bool frontObstacleDetected) override;
+    void reportBackObstacleState(BackObstacleInput backObstacleDetected) override;
+    void reportLeftObstacleState(bool leftObstacleDetected) override;
+    void reportObstacleState(
+        bool frontObstacleDetected,
+        BackObstacleInput backObstacleDetected,
+        bool leftObstacleDetected) override;
+    void reportDustDetected() override;
     void increasedPowerDurationExpired();
 
     MovementStatus movementStatus() const;

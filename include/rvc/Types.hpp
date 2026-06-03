@@ -33,6 +33,12 @@ enum class RightProbeResult {
     Blocked
 };
 
+enum class BackObstacleInput {
+    Clear,
+    Blocked,
+    Unknown
+};
+
 class Duration {
 public:
     constexpr Duration() = default;

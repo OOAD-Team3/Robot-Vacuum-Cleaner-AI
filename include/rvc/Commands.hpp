@@ -59,18 +59,20 @@ public:
     static AvoidanceDecision prepareDirectionDecision();
 
     void select(AvoidanceDirection direction);
-    void selectByPolicy(AvoidanceDirectionPolicy policy);
     void evaluateBackwardRequired(const class SensorState& sensorState);
+    void markRightProbeRequired();
     void markBackwardRequired();
     void markNoAvailableDirection();
 
     bool hasSelectedDirection() const;
     std::optional<AvoidanceDirection> selectedDirection() const;
+    bool rightProbeRequired() const;
     bool backwardRequired() const;
     bool availableDirection() const;
 
 private:
     std::optional<AvoidanceDirection> selectedDirection_;
+    bool rightProbeRequired_{false};
     bool backwardRequired_{false};
     bool availableDirection_{true};
 };

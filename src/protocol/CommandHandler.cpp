@@ -44,17 +44,14 @@ CommandResponse CommandHandler::handleParsedCommand(const ParsedCommand& command
     case CommandType::SetBack:
         application_.setBackObstacle(toApplicationBackValue(command.backObstacleDetected()));
         return response("OK SET_BACK");
-    case CommandType::SetSide:
-        application_.setSideObstacles(
-            command.leftObstacleDetected(),
-            command.rightObstacleDetected());
-        return response("OK SET_SIDE");
+    case CommandType::SetLeft:
+        application_.setLeftObstacle(command.leftObstacleDetected());
+        return response("OK SET_LEFT");
     case CommandType::SetObstacles:
         application_.setObstacleState(
             command.frontObstacleDetected(),
             toApplicationBackValue(command.backObstacleDetected()),
-            command.leftObstacleDetected(),
-            command.rightObstacleDetected());
+            command.leftObstacleDetected());
         return response("OK SET_OBSTACLES");
     case CommandType::DustDetected:
         application_.reportDustDetected();

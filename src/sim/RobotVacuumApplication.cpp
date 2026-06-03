@@ -13,7 +13,6 @@ void RobotVacuumApplication::reset() {
     frontObstacleDetected_ = false;
     backObstacleDetected_.reset();
     leftObstacleDetected_ = false;
-    rightObstacleDetected_ = false;
     dustDetected_ = false;
     createController();
 }
@@ -34,32 +33,28 @@ void RobotVacuumApplication::setBackObstacle(BackObstacleInput detected) {
     controller_->reportBackObstacleState(*backObstacleDetected_);
 }
 
-void RobotVacuumApplication::setSideObstacles(bool leftDetected, bool rightDetected) {
-    leftObstacleDetected_ = leftDetected;
-    rightObstacleDetected_ = rightDetected;
-    controller_->reportSideObstacleState(leftDetected, rightDetected);
+void RobotVacuumApplication::setLeftObstacle(bool detected) {
+    leftObstacleDetected_ = detected;
+    controller_->reportLeftObstacleState(detected);
 }
 
 void RobotVacuumApplication::setObstacleState(
     bool frontDetected,
     BackObstacleInput backDetected,
-    bool leftDetected,
-    bool rightDetected) {
+    bool leftDetected) {
     frontObstacleDetected_ = frontDetected;
     backObstacleDetected_ = toOptionalBackState(backDetected);
     leftObstacleDetected_ = leftDetected;
-    rightObstacleDetected_ = rightDetected;
 
     if (backObstacleDetected_) {
         controller_->reportObstacleState(
             frontDetected,
             *backObstacleDetected_,
-            leftDetected,
-            rightDetected);
+            leftDetected);
         return;
     }
 
-    controller_->reportObstacleState(frontDetected, leftDetected, rightDetected);
+    controller_->reportObstacleState(frontDetected, leftDetected);
 }
 
 void RobotVacuumApplication::reportDustDetected() {
@@ -84,7 +79,6 @@ ControllerStateSnapshot RobotVacuumApplication::snapshot() const {
         frontObstacleDetected_,
         backObstacleDetected_,
         leftObstacleDetected_,
-        rightObstacleDetected_,
         dustDetected_,
         drivingDevice_.lastCommand(),
         cleaningDevice_.powerState(),

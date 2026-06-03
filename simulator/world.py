@@ -241,8 +241,8 @@ class GridWorld:
         return front, back, left, right
 
     def set_obstacles_command(self, back_unknown: bool = False, coverage_bias: bool = True) -> str:
-        front, back, left, right = self.sensor_values(back_unknown, coverage_bias)
-        return f"SET_OBSTACLES FRONT={front} BACK={back} LEFT={left} RIGHT={right}"
+        front, back, left, _right = self.sensor_values(back_unknown, coverage_bias)
+        return f"SET_OBSTACLES FRONT={front} BACK={back} LEFT={left}"
 
     def apply_drive(self, drive: str) -> StepResult:
         if drive == "MOVE_FORWARD":

@@ -22,14 +22,15 @@ enum class CleaningPowerLevel {
     Increased
 };
 
-enum class AvoidanceDirectionPolicy {
-    LeftFirst,
-    RightFirst
-};
-
 enum class AvoidanceDirection {
     Left,
     Right
+};
+
+enum class RightProbeResult {
+    Unknown,
+    Open,
+    Blocked
 };
 
 class Duration {
@@ -48,4 +49,3 @@ private:
 };
 
 } // namespace rvc
-

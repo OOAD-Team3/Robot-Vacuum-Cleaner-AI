@@ -20,13 +20,9 @@ public:
     void reportFrontObstacleState(bool frontObstacleDetected);
     void reportBackObstacleState(bool backObstacleDetected);
     void reportBackObstacleStateUnknown();
-    void reportSideObstacleState(bool leftObstacleDetected, bool rightObstacleDetected);
-    void reportObstacleState(bool frontObstacleDetected, bool leftObstacleDetected, bool rightObstacleDetected);
-    void reportObstacleState(
-        bool frontObstacleDetected,
-        bool backObstacleDetected,
-        bool leftObstacleDetected,
-        bool rightObstacleDetected);
+    void reportLeftObstacleState(bool leftObstacleDetected);
+    void reportObstacleState(bool frontObstacleDetected, bool leftObstacleDetected);
+    void reportObstacleState(bool frontObstacleDetected, bool backObstacleDetected, bool leftObstacleDetected);
     void reportDustDetected();
     void increasedPowerDurationExpired();
 
@@ -36,6 +32,9 @@ private:
     void apply(CommandResult result);
     void applyInitialDustResponse(CommandResult result);
     void applyPendingDustResponseIfCleaning();
+    bool applyRightProbeResultIfNeeded();
+    bool applyAvoidanceDecisionFromCurrentState();
+    void applyAvoidanceDecision(const AvoidanceDecision& decision);
     void executeMovementCommand(const MovementCommand& command);
     void executeCleaningCommand(const CleaningCommand& command);
     void startTimerIfNeeded(const std::optional<Duration>& duration);

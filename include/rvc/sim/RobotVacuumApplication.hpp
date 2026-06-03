@@ -22,12 +22,11 @@ public:
     void reset();
     void setFrontObstacle(bool detected);
     void setBackObstacle(BackObstacleInput detected);
-    void setSideObstacles(bool leftDetected, bool rightDetected);
+    void setLeftObstacle(bool detected);
     void setObstacleState(
         bool frontDetected,
         BackObstacleInput backDetected,
-        bool leftDetected,
-        bool rightDetected);
+        bool leftDetected);
     void reportDustDetected();
     bool expirePowerTimer();
 
@@ -44,7 +43,6 @@ private:
     bool frontObstacleDetected_{false};
     std::optional<bool> backObstacleDetected_;
     bool leftObstacleDetected_{false};
-    bool rightObstacleDetected_{false};
     bool dustDetected_{false};
 };
 

@@ -132,13 +132,12 @@ When every floor cell reachable from the initial robot position has been cleaned
 | `3` | `SET_BACK 0`, then `GET_STATE` |
 | `4` | `SET_BACK 1`, then `GET_STATE` |
 | `5` | `SET_BACK UNKNOWN`, then `GET_STATE` |
-| `Q` | `SET_SIDE LEFT=1 RIGHT=0`, then `GET_STATE` |
-| `W` | `SET_SIDE LEFT=0 RIGHT=1`, then `GET_STATE` |
-| `E` | `SET_SIDE LEFT=0 RIGHT=0`, then `GET_STATE` |
-| `A` | `SET_OBSTACLES FRONT=0 BACK=UNKNOWN LEFT=0 RIGHT=0`, then `GET_STATE` |
-| `S` | `SET_OBSTACLES FRONT=1 BACK=UNKNOWN LEFT=0 RIGHT=0`, then `GET_STATE` |
-| `D` | `SET_OBSTACLES FRONT=1 BACK=0 LEFT=1 RIGHT=1`, then `GET_STATE` |
-| `F` | `SET_OBSTACLES FRONT=1 BACK=1 LEFT=1 RIGHT=1`, then `GET_STATE` |
+| `Q` | `SET_LEFT 1`, then `GET_STATE` |
+| `E` | `SET_LEFT 0`, then `GET_STATE` |
+| `A` | `SET_OBSTACLES FRONT=0 BACK=UNKNOWN LEFT=0`, then `GET_STATE` |
+| `S` | `SET_OBSTACLES FRONT=1 BACK=UNKNOWN LEFT=0`, then `GET_STATE` |
+| `D` | `SET_OBSTACLES FRONT=1 BACK=0 LEFT=1`, then `GET_STATE` |
+| `F` | `SET_OBSTACLES FRONT=1 BACK=1 LEFT=1`, then `GET_STATE` |
 | `Z` | `DUST_DETECTED`, then `GET_STATE` |
 | `X` | `POWER_TIMEOUT`, then `GET_STATE` |
 | `Esc` | Exit |
@@ -148,7 +147,7 @@ When every floor cell reachable from the initial robot position has been cleaned
 The simulator expects a single-line key-value response:
 
 ```text
-OK STATE MOVEMENT=CLEANING FRONT=0 BACK=UNKNOWN LEFT=0 RIGHT=0 DUST=0 DRIVE=MOVE_FORWARD CLEANING_POWER=NORMAL TIMER_ACTIVE=0
+OK STATE MOVEMENT=CLEANING FRONT=0 BACK=UNKNOWN LEFT=0 DUST=0 DRIVE=MOVE_FORWARD CLEANING_POWER=NORMAL TIMER_ACTIVE=0
 ```
 
 It parses the response by splitting whitespace and `KEY=VALUE` tokens. JSON is not used.

@@ -48,13 +48,12 @@ def manual_command_for_key(key: int, pygame_module) -> Optional[Tuple[str, bool]
         pygame_module.K_3: ("SET_BACK 0", True),
         pygame_module.K_4: ("SET_BACK 1", True),
         pygame_module.K_5: ("SET_BACK UNKNOWN", True),
-        pygame_module.K_q: ("SET_SIDE LEFT=1 RIGHT=0", True),
-        pygame_module.K_w: ("SET_SIDE LEFT=0 RIGHT=1", True),
-        pygame_module.K_e: ("SET_SIDE LEFT=0 RIGHT=0", True),
-        pygame_module.K_a: ("SET_OBSTACLES FRONT=0 BACK=UNKNOWN LEFT=0 RIGHT=0", True),
-        pygame_module.K_s: ("SET_OBSTACLES FRONT=1 BACK=UNKNOWN LEFT=0 RIGHT=0", True),
-        pygame_module.K_d: ("SET_OBSTACLES FRONT=1 BACK=0 LEFT=1 RIGHT=1", True),
-        pygame_module.K_f: ("SET_OBSTACLES FRONT=1 BACK=1 LEFT=1 RIGHT=1", True),
+        pygame_module.K_q: ("SET_LEFT 1", True),
+        pygame_module.K_e: ("SET_LEFT 0", True),
+        pygame_module.K_a: ("SET_OBSTACLES FRONT=0 BACK=UNKNOWN LEFT=0", True),
+        pygame_module.K_s: ("SET_OBSTACLES FRONT=1 BACK=UNKNOWN LEFT=0", True),
+        pygame_module.K_d: ("SET_OBSTACLES FRONT=1 BACK=0 LEFT=1", True),
+        pygame_module.K_f: ("SET_OBSTACLES FRONT=1 BACK=1 LEFT=1", True),
         pygame_module.K_z: ("DUST_DETECTED", True),
         pygame_module.K_x: ("POWER_TIMEOUT", True),
     }
@@ -373,7 +372,6 @@ def draw_world(surface, font, small_font, world: GridWorld, state: Dict[str, str
         ("FRONT", state.get("FRONT", "-")),
         ("BACK", state.get("BACK", "-")),
         ("LEFT", state.get("LEFT", "-")),
-        ("RIGHT", state.get("RIGHT", "-")),
     ]
     x = 48
     for label, value in sensors:
@@ -398,7 +396,6 @@ def draw_manual_robot(surface, font, state: Dict[str, str]) -> None:
         "FRONT": (center[0], robot_rect.top - 45),
         "BACK": (center[0], robot_rect.bottom + 45),
         "LEFT": (robot_rect.left - 55, center[1]),
-        "RIGHT": (robot_rect.right + 55, center[1]),
     }
 
     for name, position in sensors.items():
@@ -477,8 +474,7 @@ def draw_panel(surface, font, small_font, model: SimulatorModel, world: GridWorl
         (("MOVEMENT", model.state.get("MOVEMENT", "-")), ("FRONT", model.state.get("FRONT", "-"))),
         (("DRIVE", model.state.get("DRIVE", "-")), ("BACK", model.state.get("BACK", "-"))),
         (("CLEANING_POWER", model.state.get("CLEANING_POWER", "-")), ("LEFT", model.state.get("LEFT", "-"))),
-        (("TIMER_ACTIVE", model.state.get("TIMER_ACTIVE", "-")), ("RIGHT", model.state.get("RIGHT", "-"))),
-        (("DUST", model.state.get("DUST", "-")), None),
+        (("TIMER_ACTIVE", model.state.get("TIMER_ACTIVE", "-")), ("DUST", model.state.get("DUST", "-"))),
     ]
 
     state_col2_x = content_x + 320
@@ -575,9 +571,8 @@ def draw_help(surface, small_font, mode: str) -> None:
             ("3", "BACK=0"),
             ("4", "BACK=1"),
             ("5", "BACK=UNK"),
-            ("Q", "L=1/R=0"),
-            ("W", "L=0/R=1"),
-            ("E", "L=0/R=0"),
+            ("Q", "LEFT=1"),
+            ("E", "LEFT=0"),
             ("A", "clear"),
             ("S", "front"),
             ("D", "3-side"),

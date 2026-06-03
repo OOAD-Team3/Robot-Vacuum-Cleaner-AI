@@ -2,25 +2,6 @@
 
 namespace rvc {
 
-SideObstacleState::SideObstacleState(bool leftBlocked, bool rightBlocked)
-    : leftBlocked_(leftBlocked), rightBlocked_(rightBlocked) {}
-
-bool SideObstacleState::leftBlocked() const {
-    return leftBlocked_;
-}
-
-bool SideObstacleState::rightBlocked() const {
-    return rightBlocked_;
-}
-
-bool SideObstacleState::bothBlocked() const {
-    return leftBlocked_ && rightBlocked_;
-}
-
-bool SideObstacleState::bothOpen() const {
-    return !leftBlocked_ && !rightBlocked_;
-}
-
 void SensorState::updateFrontObstacle(bool frontObstacleDetected) {
     frontObstacleDetected_ = frontObstacleDetected;
 }
@@ -29,30 +10,23 @@ void SensorState::updateBackObstacle(bool backObstacleDetected) {
     backObstacleDetected_ = backObstacleDetected;
 }
 
-void SensorState::updateSideObstacles(bool leftObstacleDetected, bool rightObstacleDetected) {
+void SensorState::updateLeftObstacle(bool leftObstacleDetected) {
     leftObstacleDetected_ = leftObstacleDetected;
-    rightObstacleDetected_ = rightObstacleDetected;
 }
 
-void SensorState::updateObstacles(
-    bool frontObstacleDetected,
-    bool leftObstacleDetected,
-    bool rightObstacleDetected) {
+void SensorState::updateObstacles(bool frontObstacleDetected, bool leftObstacleDetected) {
     frontObstacleDetected_ = frontObstacleDetected;
     backObstacleDetected_.reset();
     leftObstacleDetected_ = leftObstacleDetected;
-    rightObstacleDetected_ = rightObstacleDetected;
 }
 
 void SensorState::updateObstacles(
     bool frontObstacleDetected,
     bool backObstacleDetected,
-    bool leftObstacleDetected,
-    bool rightObstacleDetected) {
+    bool leftObstacleDetected) {
     frontObstacleDetected_ = frontObstacleDetected;
     backObstacleDetected_ = backObstacleDetected;
     leftObstacleDetected_ = leftObstacleDetected;
-    rightObstacleDetected_ = rightObstacleDetected;
 }
 
 void SensorState::clearBackObstacleState() {
@@ -75,20 +49,16 @@ bool SensorState::isBackObstacleStateKnown() const {
     return backObstacleDetected_.has_value();
 }
 
+bool SensorState::isLeftObstacleDetected() const {
+    return leftObstacleDetected_;
+}
+
 bool SensorState::isDustDetected() const {
     return dustDetected_;
 }
 
-bool SensorState::isThreeSideBlocked() const {
-    return frontObstacleDetected_ && leftObstacleDetected_ && rightObstacleDetected_;
-}
-
 bool SensorState::canMoveBackward() const {
     return backObstacleDetected_.has_value() && !*backObstacleDetected_;
-}
-
-SideObstacleState SensorState::sideObstacleState() const {
-    return SideObstacleState(leftObstacleDetected_, rightObstacleDetected_);
 }
 
 } // namespace rvc

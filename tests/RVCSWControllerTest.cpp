@@ -73,6 +73,23 @@ protected:
         time.startedDurations.clear();
     }
 
+    void enterAvoidance() {
+        controller.reportFrontObstacleState(true);
+        clearDeviceCalls();
+    }
+
+    void startRightProbe() {
+        enterAvoidance();
+        controller.reportLeftObstacleState(true);
+        clearDeviceCalls();
+    }
+
+    void confirmThreeSideBlocked() {
+        startRightProbe();
+        controller.reportFrontObstacleState(true);
+        clearDeviceCalls();
+    }
+
     DrivingDeviceStub drive;
     CleaningDeviceStub cleaner;
     TimeStub time;
@@ -87,9 +104,20 @@ std::vector<rvc::MovementCommandType> movementTypes(const rvc::CommandResult& re
     return types;
 }
 
+void confirmThreeSideBlocked(rvc::AutomaticCleaning& cleaning, rvc::SensorState& sensorState) {
+    sensorState.updateFrontObstacle(true);
+    sensorState.updateLeftObstacle(true);
+
+    const auto probeDecision = cleaning.selectAvoidanceDirection(sensorState);
+    ASSERT_TRUE(probeDecision.rightProbeRequired());
+
+    sensorState.updateFrontObstacle(true);
+    const auto blockedDecision = cleaning.selectAvoidanceDirection(sensorState);
+    ASSERT_TRUE(blockedDecision.backwardRequired());
+}
+
 } // namespace
 
-// 전방 clear 입력 시 normal 청소 전원 설정 후 moveForward가 호출되어 UC-001 기본 주행을 검증한다.
 TEST_F(RVCSWControllerTest, UC001MovesForwardAndStartsNormalCleaningWhenFrontIsClear) {
     controller.reportFrontObstacleState(false);
 
@@ -99,7 +127,6 @@ TEST_F(RVCSWControllerTest, UC001MovesForwardAndStartsNormalCleaningWhenFrontIsC
     EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Cleaning);
 }
 
-// 전방 clear 입력 시 setNormal이 moveForward보다 먼저 호출되어 문서의 UC-001 호출 순서를 검증한다.
 TEST(RVCSWControllerOrderTest, UC001AppliesCleaningCommandBeforeMovementCommand) {
     std::vector<std::string> orderedCalls;
     DrivingDeviceStub drive;
@@ -114,7 +141,6 @@ TEST(RVCSWControllerOrderTest, UC001AppliesCleaningCommandBeforeMovementCommand)
     EXPECT_EQ(orderedCalls, (std::vector<std::string>{"setNormal", "moveForward"}));
 }
 
-// 전방 blocked 입력 시 stop만 호출되고 AvoidingObstacle 상태가 되어 UC-002 안전 정지를 검증한다.
 TEST_F(RVCSWControllerTest, UC002StopsWhenFrontObstacleIsDetected) {
     controller.reportFrontObstacleState(true);
 
@@ -123,206 +149,188 @@ TEST_F(RVCSWControllerTest, UC002StopsWhenFrontObstacleIsDetected) {
     EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
 }
 
-// 복합 센서 snapshot에서 전방 blocked 입력 시 stop과 AvoidingObstacle 상태가 되어 UC-002 경로를 검증한다.
 TEST_F(RVCSWControllerTest, UC002CombinedObstacleSnapshotStopsOnFrontObstacle) {
-    controller.reportObstacleState(true, false, false);
+    controller.reportObstacleState(true, rvc::BackObstacleInput::Unknown, false);
 
     EXPECT_EQ(drive.calls, std::vector<std::string>{"stop"});
     EXPECT_TRUE(cleaner.calls.empty());
     EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
 }
 
-// 좌측 blocked/우측 open 입력 시 turnRight가 호출되어 UC-003 회전 방향을 검증한다.
-TEST_F(RVCSWControllerTest, UC003TurnsRightWhenLeftSideIsBlocked) {
-    controller.reportFrontObstacleState(true);
+TEST_F(RVCSWControllerTest, LeftObstacleReportDoesNotTurnDuringNormalCleaning) {
+    controller.reportFrontObstacleState(false);
     clearDeviceCalls();
 
-    controller.reportSideObstacleState(true, false);
-
-    EXPECT_EQ(drive.calls, std::vector<std::string>{"turnRight"});
-    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
-}
-
-// 우측 blocked/좌측 open 입력 시 turnLeft가 호출되어 UC-003 대칭 회전 방향을 검증한다.
-TEST_F(RVCSWControllerTest, UC003TurnsLeftWhenRightSideIsBlocked) {
-    controller.reportFrontObstacleState(true);
-    clearDeviceCalls();
-
-    controller.reportSideObstacleState(false, true);
-
-    EXPECT_EQ(drive.calls, std::vector<std::string>{"turnLeft"});
-    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
-}
-
-// 양측 open 입력 시 기본 LeftFirst 정책에 따라 turnLeft가 호출되는지 검증한다.
-TEST_F(RVCSWControllerTest, UC003TurnsLeftByDefaultWhenBothSidesAreOpen) {
-    controller.reportFrontObstacleState(true);
-    clearDeviceCalls();
-
-    controller.reportSideObstacleState(false, false);
-
-    EXPECT_EQ(drive.calls, std::vector<std::string>{"turnLeft"});
-    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
-}
-
-// RightFirst 정책에서 양측 open 입력 시 turnRight가 호출되어 정책 주입 효과를 검증한다.
-TEST(RVCSWControllerPolicyTest, UC003TurnsRightWhenInjectedPolicyIsRightFirst) {
-    DrivingDeviceStub drive;
-    CleaningDeviceStub cleaner;
-    TimeStub time;
-    rvc::CleaningPolicy policy{
-        rvc::AvoidanceDirectionPolicy::RightFirst,
-        rvc::CleaningPowerLevel::Increased,
-        rvc::Duration::seconds(5)};
-    rvc::RVCSWController controller{drive, cleaner, time, rvc::AutomaticCleaning{policy}};
-
-    controller.reportFrontObstacleState(true);
-    drive.calls.clear();
-
-    controller.reportSideObstacleState(false, false);
-
-    EXPECT_EQ(drive.calls, std::vector<std::string>{"turnRight"});
-}
-
-// 양측 blocked/후방 unknown 입력 시 구동 호출 없이 Blocked 상태가 되어 UC-005 대기 흐름을 검증한다.
-TEST_F(RVCSWControllerTest, UC003BothSidesBlockedDoesNotMoveBeforeBackStateIsKnown) {
-    controller.reportFrontObstacleState(true);
-    clearDeviceCalls();
-
-    controller.reportSideObstacleState(true, true);
+    controller.reportLeftObstacleState(true);
 
     EXPECT_TRUE(drive.calls.empty());
+    EXPECT_TRUE(cleaner.calls.empty());
+    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Cleaning);
+}
+
+TEST_F(RVCSWControllerTest, UC003TurnsLeftWhenLeftSideIsOpen) {
+    enterAvoidance();
+
+    controller.reportLeftObstacleState(false);
+
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"turnLeft"});
+    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
+}
+
+TEST_F(RVCSWControllerTest, UC003StartsRightProbeWhenLeftSideIsBlocked) {
+    enterAvoidance();
+
+    controller.reportLeftObstacleState(true);
+
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"turnRight"});
+    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
+}
+
+TEST_F(RVCSWControllerTest, UC003LeftOnlyReportDoesNotResolveActiveRightProbe) {
+    startRightProbe();
+
+    controller.reportLeftObstacleState(true);
+
+    EXPECT_TRUE(drive.calls.empty());
+    EXPECT_TRUE(cleaner.calls.empty());
+    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
+}
+
+TEST_F(RVCSWControllerTest, UC003FrontLeftSnapshotStartsRightProbeDuringAvoidance) {
+    enterAvoidance();
+
+    controller.reportObstacleState(true, rvc::BackObstacleInput::Unknown, true);
+
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"turnRight"});
+    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
+}
+
+TEST_F(RVCSWControllerTest, UC003RightProbeOpenResumesWithoutReturningToOriginalHeading) {
+    startRightProbe();
+
+    controller.reportFrontObstacleState(false);
+
+    EXPECT_EQ(cleaner.calls, std::vector<std::string>{"setNormal"});
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"moveForward"});
+    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Cleaning);
+}
+
+TEST_F(RVCSWControllerTest, UC003RightProbeOpenSnapshotResumesWithoutReturningToOriginalHeading) {
+    startRightProbe();
+
+    controller.reportObstacleState(false, rvc::BackObstacleInput::Unknown, true);
+
+    EXPECT_EQ(cleaner.calls, std::vector<std::string>{"setNormal"});
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"moveForward"});
+    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Cleaning);
+}
+
+TEST_F(RVCSWControllerTest, UC003RightProbeBlockedReturnsToOriginalHeadingAndWaitsForBackSensor) {
+    startRightProbe();
+
+    controller.reportFrontObstacleState(true);
+
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"turnLeft"});
     EXPECT_TRUE(cleaner.calls.empty());
     EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Blocked);
 }
 
-// 일반 주행 상태에서 side sensor만 입력되면 회피 회전이 발생하지 않는지 검증한다.
-TEST_F(RVCSWControllerTest, SideObstacleReportDoesNotTurnDuringNormalCleaning) {
-    controller.reportFrontObstacleState(false);
-    clearDeviceCalls();
+TEST_F(RVCSWControllerTest, UC005StopsWhenBackStateIsUnknownAfterRightProbeBlocked) {
+    confirmThreeSideBlocked();
 
-    controller.reportSideObstacleState(true, false);
+    controller.reportBackObstacleState(rvc::BackObstacleInput::Unknown);
 
-    EXPECT_TRUE(drive.calls.empty());
-    EXPECT_TRUE(cleaner.calls.empty());
-    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Cleaning);
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"stop"});
+    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Blocked);
 }
 
-// 회피 상태에서 전방 blocked와 좌우 상태가 함께 들어오면 stop 반복 대신 회피 방향을 재선택하는지 검증한다.
-TEST_F(RVCSWControllerTest, AvoidingObstacleSnapshotWithSideStateSelectsAvoidanceDirection) {
-    controller.reportFrontObstacleState(true);
-    clearDeviceCalls();
+TEST_F(RVCSWControllerTest, UC005CombinedSnapshotWithUnknownBackStopsAfterRightProbeBlocked) {
+    confirmThreeSideBlocked();
 
-    controller.reportObstacleState(true, true, false);
+    controller.reportObstacleState(true, rvc::BackObstacleInput::Unknown, true);
 
-    EXPECT_EQ(drive.calls, std::vector<std::string>{"turnRight"});
-    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"stop"});
+    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Blocked);
 }
 
-// 회피 상태에서 전방 clear 입력 시 normal 설정 후 moveForward가 호출되어 UC-004 재개 흐름을 검증한다.
-TEST_F(RVCSWControllerTest, UC004ResumesForwardCleaningAfterTurnWhenFrontIsClear) {
-    controller.reportFrontObstacleState(true);
-    clearDeviceCalls();
+TEST_F(RVCSWControllerTest, UC005StopsAndMovesBackwardWhenBackIsClearAfterRightProbeBlocked) {
+    confirmThreeSideBlocked();
 
-    controller.reportFrontObstacleState(false);
-
-    EXPECT_EQ(cleaner.calls, std::vector<std::string>{"setNormal"});
-    EXPECT_EQ(drive.calls, std::vector<std::string>{"moveForward"});
-    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Cleaning);
-}
-
-// 회피 상태에서 전체 clear snapshot 입력 시 normal 설정 후 moveForward가 호출되는 복합 UC-004 경로를 검증한다.
-TEST_F(RVCSWControllerTest, UC004CombinedObstacleSnapshotResumesAfterAvoidance) {
-    controller.reportFrontObstacleState(true);
-    clearDeviceCalls();
-
-    controller.reportObstacleState(false, false, false);
-
-    EXPECT_EQ(cleaner.calls, std::vector<std::string>{"setNormal"});
-    EXPECT_EQ(drive.calls, std::vector<std::string>{"moveForward"});
-    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Cleaning);
-}
-
-// 전/좌/우 blocked+후방 clear 입력 시 stop 후 moveBackward가 호출되어 UC-005 후진 순서를 검증한다.
-TEST_F(RVCSWControllerTest, UC005StopsAndMovesBackwardWhenThreeSidesBlockedAndBackIsClear) {
-    controller.reportObstacleState(true, false, true, true);
+    controller.reportBackObstacleState(rvc::BackObstacleInput::Clear);
 
     EXPECT_EQ(drive.calls, (std::vector<std::string>{"stop", "moveBackward"}));
     EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Blocked);
 }
 
-// 사방 blocked 입력 시 stop만 호출되고 Stopped 상태가 되어 UC-005 후진 불가 흐름을 검증한다.
-TEST_F(RVCSWControllerTest, UC005StopsWhenThreeSidesAndBackAreBlocked) {
-    controller.reportObstacleState(true, true, true, true);
-
-    EXPECT_EQ(drive.calls, std::vector<std::string>{"stop"});
-    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Stopped);
-}
-
-// 전/좌/우 blocked+후방 unknown 입력 시 구동 호출이 없어 후방 정보 필수 조건을 검증한다.
-TEST_F(RVCSWControllerTest, UC005ThreeDirectionSnapshotWaitsForBackSensorBeforeMoving) {
-    controller.reportObstacleState(true, true, true);
-
-    EXPECT_EQ(drive.calls, std::vector<std::string>{"stop"});
-    EXPECT_TRUE(cleaner.calls.empty());
-    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Blocked);
-}
-
-// 전/좌/우 blocked 이후 후방 clear 입력 시 stop 후 moveBackward가 호출되는 단계적 UC-005 흐름을 검증한다.
-TEST_F(RVCSWControllerTest, UC005BackSensorClearCompletesPendingThreeSideObstacleFlow) {
-    controller.reportObstacleState(true, true, true);
+TEST_F(RVCSWControllerTest, UC005BackSensorClearAfterUnknownStopMovesBackwardWithoutRepeatingStop) {
+    confirmThreeSideBlocked();
+    controller.reportBackObstacleState(rvc::BackObstacleInput::Unknown);
     clearDeviceCalls();
 
-    controller.reportBackObstacleState(false);
+    controller.reportBackObstacleState(rvc::BackObstacleInput::Clear);
 
     EXPECT_EQ(drive.calls, std::vector<std::string>{"moveBackward"});
     EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Blocked);
 }
 
-// 후진 후 전체 clear snapshot이 들어오면 바로 전진하지 않고 회피 방향 전환을 먼저 수행하는지 검증한다.
-TEST_F(RVCSWControllerTest, UC005SelectsAvoidanceDirectionAfterBackwardBeforeResumingForward) {
-    controller.reportObstacleState(true, false, true, true);
-    clearDeviceCalls();
+TEST_F(RVCSWControllerTest, UC005StopsWhenBackIsBlockedAfterRightProbeBlocked) {
+    confirmThreeSideBlocked();
 
-    controller.reportObstacleState(false, false, false, false);
-
-    EXPECT_EQ(drive.calls, std::vector<std::string>{"turnLeft"});
-    EXPECT_TRUE(cleaner.calls.empty());
-    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
-}
-
-// 후진 후 전방 clear 단일 입력이 들어와도 바로 전진하지 않고 회피 방향 전환을 먼저 수행하는지 검증한다.
-TEST_F(RVCSWControllerTest, UC005FrontClearAfterBackwardSelectsAvoidanceDirectionBeforeForward) {
-    controller.reportObstacleState(true, false, true, true);
-    clearDeviceCalls();
-
-    controller.reportFrontObstacleState(false);
-
-    EXPECT_EQ(drive.calls, std::vector<std::string>{"turnLeft"});
-    EXPECT_TRUE(cleaner.calls.empty());
-    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
-}
-
-// 전/좌/우 blocked 이후 후방 blocked 입력 시 stop만 호출되는 단계적 후진 불가 흐름을 검증한다.
-TEST_F(RVCSWControllerTest, UC005BackSensorBlockedCompletesPendingThreeSideObstacleFlowWithStop) {
-    controller.reportObstacleState(true, true, true);
-    clearDeviceCalls();
-
-    controller.reportBackObstacleState(true);
+    controller.reportBackObstacleState(rvc::BackObstacleInput::Blocked);
 
     EXPECT_EQ(drive.calls, std::vector<std::string>{"stop"});
     EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Stopped);
 }
 
-// 일반 상태에서 후방 clear만 입력 시 아무 호출도 없어 UC-005 선행조건을 검증한다.
+TEST_F(RVCSWControllerTest, UC005AfterBackwardUsesLeftSensorBeforeResuming) {
+    confirmThreeSideBlocked();
+    controller.reportBackObstacleState(rvc::BackObstacleInput::Clear);
+    clearDeviceCalls();
+
+    controller.reportLeftObstacleState(false);
+
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"turnLeft"});
+    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
+}
+
+TEST_F(RVCSWControllerTest, UC005AfterBackwardCanStartAnotherRightProbeWhenLeftIsStillBlocked) {
+    confirmThreeSideBlocked();
+    controller.reportBackObstacleState(rvc::BackObstacleInput::Clear);
+    clearDeviceCalls();
+
+    controller.reportLeftObstacleState(true);
+
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"turnRight"});
+    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
+}
+
 TEST_F(RVCSWControllerTest, BackSensorAloneDoesNotTriggerMovement) {
-    controller.reportBackObstacleState(false);
+    controller.reportBackObstacleState(rvc::BackObstacleInput::Clear);
 
     EXPECT_TRUE(drive.calls.empty());
     EXPECT_TRUE(cleaner.calls.empty());
 }
 
-// 먼지 감지 입력 시 setIncreased 후 타이머가 시작되어 UC-006 활성화를 검증한다.
+TEST_F(RVCSWControllerTest, UC004ResumesForwardCleaningAfterTurnWhenFrontIsClear) {
+    enterAvoidance();
+
+    controller.reportFrontObstacleState(false);
+
+    EXPECT_EQ(cleaner.calls, std::vector<std::string>{"setNormal"});
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"moveForward"});
+    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Cleaning);
+}
+
+TEST_F(RVCSWControllerTest, UC004CombinedObstacleSnapshotResumesAfterAvoidance) {
+    enterAvoidance();
+
+    controller.reportObstacleState(false, rvc::BackObstacleInput::Unknown, false);
+
+    EXPECT_EQ(cleaner.calls, std::vector<std::string>{"setNormal"});
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"moveForward"});
+    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Cleaning);
+}
+
 TEST_F(RVCSWControllerTest, UC006IncreasesCleaningPowerAndStartsTimerWhenDustDetected) {
     controller.reportFrontObstacleState(false);
     clearDeviceCalls();
@@ -334,15 +342,11 @@ TEST_F(RVCSWControllerTest, UC006IncreasesCleaningPowerAndStartsTimerWhenDustDet
     EXPECT_GT(time.startedDurations.front(), 0);
 }
 
-// custom duration 정책에서 먼지 감지 입력 시 지정한 1234ms 타이머가 전달되는지 검증한다.
 TEST(RVCSWControllerPolicyTest, UC006UsesInjectedDustResponseDuration) {
     DrivingDeviceStub drive;
     CleaningDeviceStub cleaner;
     TimeStub time;
-    rvc::CleaningPolicy policy{
-        rvc::AvoidanceDirectionPolicy::LeftFirst,
-        rvc::CleaningPowerLevel::Increased,
-        rvc::Duration::milliseconds(1234)};
+    rvc::CleaningPolicy policy{rvc::CleaningPowerLevel::Increased, rvc::Duration::milliseconds(1234)};
     rvc::RVCSWController controller{drive, cleaner, time, rvc::AutomaticCleaning{policy}};
 
     controller.reportFrontObstacleState(false);
@@ -355,7 +359,6 @@ TEST(RVCSWControllerPolicyTest, UC006UsesInjectedDustResponseDuration) {
     EXPECT_EQ(time.startedDurations, std::vector<int>{1234});
 }
 
-// 먼지 응답 중 전방 blocked 입력 시 stop과 keepIncreased가 호출되어 UC-006 중단 분기를 검증한다.
 TEST_F(RVCSWControllerTest, UC006KeepsIncreasedPowerWhenObstacleDetectedDuringDustResponse) {
     controller.reportFrontObstacleState(false);
     clearDeviceCalls();
@@ -365,26 +368,42 @@ TEST_F(RVCSWControllerTest, UC006KeepsIncreasedPowerWhenObstacleDetectedDuringDu
 
     controller.reportFrontObstacleState(true);
 
-    EXPECT_EQ(drive.calls, std::vector<std::string>{"stop"});
     EXPECT_EQ(cleaner.calls, std::vector<std::string>{"keepIncreased"});
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"stop"});
 }
 
-// 먼지 응답 중 단계적 UC-005 후방 clear 입력 시 increased를 유지하면서 후진하는지 검증한다.
+TEST_F(RVCSWControllerTest, UC006KeepsIncreasedPowerWhenRightProbeOpenResumesCleaning) {
+    controller.reportFrontObstacleState(false);
+    clearDeviceCalls();
+
+    controller.reportDustDetected();
+    controller.reportFrontObstacleState(true);
+    controller.reportLeftObstacleState(true);
+    clearDeviceCalls();
+
+    controller.reportFrontObstacleState(false);
+
+    EXPECT_EQ(cleaner.calls, std::vector<std::string>{"keepIncreased"});
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"moveForward"});
+    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Cleaning);
+}
+
 TEST_F(RVCSWControllerTest, UC006KeepsIncreasedPowerWhenBackSensorCompletesThreeSideFlow) {
     controller.reportFrontObstacleState(false);
     clearDeviceCalls();
 
     controller.reportDustDetected();
-    controller.reportObstacleState(true, true, true);
+    controller.reportFrontObstacleState(true);
+    controller.reportLeftObstacleState(true);
+    controller.reportFrontObstacleState(true);
     clearDeviceCalls();
 
-    controller.reportBackObstacleState(false);
+    controller.reportBackObstacleState(rvc::BackObstacleInput::Clear);
 
     EXPECT_EQ(cleaner.calls, std::vector<std::string>{"keepIncreased"});
-    EXPECT_EQ(drive.calls, std::vector<std::string>{"moveBackward"});
+    EXPECT_EQ(drive.calls, (std::vector<std::string>{"stop", "moveBackward"}));
 }
 
-// 먼지 응답 중 전방 clear 입력 시 keepIncreased 후 moveForward가 호출되어 지속 청소 분기를 검증한다.
 TEST_F(RVCSWControllerTest, UC006KeepsIncreasedPowerWhileContinuingForwardCleaning) {
     controller.reportFrontObstacleState(false);
     clearDeviceCalls();
@@ -399,8 +418,6 @@ TEST_F(RVCSWControllerTest, UC006KeepsIncreasedPowerWhileContinuingForwardCleani
     EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Cleaning);
 }
 
-// 먼지 응답 중 timeout 입력 시 setNormal이 호출되어 UC-007 전원 복귀를 검증한다.
-// 회피 중 먼지 감지 입력은 즉시 출력 증가하지 않고 청소 재개 시 UC-006으로 처리되는지 검증한다.
 TEST_F(RVCSWControllerTest, UC006DefersDustResponseDuringAvoidanceUntilCleaningResumes) {
     controller.reportFrontObstacleState(true);
     clearDeviceCalls();
@@ -430,7 +447,6 @@ TEST_F(RVCSWControllerTest, UC007ReturnsCleaningPowerToNormalWhenTimerExpires) {
     EXPECT_EQ(cleaner.calls, std::vector<std::string>{"setNormal"});
 }
 
-// 먼지 응답이 없을 때 timeout 입력 시 아무 호출도 없어 비활성 guard를 검증한다.
 TEST_F(RVCSWControllerTest, UC007TimeoutWithoutActiveDustResponseDoesNothing) {
     controller.increasedPowerDurationExpired();
 
@@ -439,7 +455,6 @@ TEST_F(RVCSWControllerTest, UC007TimeoutWithoutActiveDustResponseDoesNothing) {
     EXPECT_TRUE(time.startedDurations.empty());
 }
 
-// 먼지+장애물 상태에서 timeout 입력 시 normal만 복귀하고 회피 상태가 유지되는지 검증한다.
 TEST_F(RVCSWControllerTest, UC007TimeoutRestoresPowerWithoutChangingAvoidanceStatus) {
     controller.reportFrontObstacleState(false);
     clearDeviceCalls();
@@ -455,7 +470,6 @@ TEST_F(RVCSWControllerTest, UC007TimeoutRestoresPowerWithoutChangingAvoidanceSta
     EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
 }
 
-// clear SensorState 입력 시 moveForward와 normal 청소 명령이 생성되는 기본 도메인 결과를 검증한다.
 TEST(AutomaticCleaningTest, HandleSensorStateReturnsForwardNormalCleaningForClearPath) {
     rvc::SensorState sensorState;
     rvc::AutomaticCleaning cleaning;
@@ -468,7 +482,6 @@ TEST(AutomaticCleaningTest, HandleSensorStateReturnsForwardNormalCleaningForClea
     EXPECT_EQ(cleaning.movementStatus(), rvc::MovementStatus::Cleaning);
 }
 
-// 전방 blocked SensorState 입력 시 stop 명령과 AvoidingObstacle 상태가 되는 도메인 정지 판단을 검증한다.
 TEST(AutomaticCleaningTest, HandleSensorStateStopsForFrontObstacle) {
     rvc::SensorState sensorState;
     sensorState.updateFrontObstacle(true);
@@ -481,54 +494,78 @@ TEST(AutomaticCleaningTest, HandleSensorStateStopsForFrontObstacle) {
     EXPECT_EQ(cleaning.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
 }
 
-// RightFirst 정책과 양측 open 입력 시 Right 방향이 선택되는 정책 기반 회피 결정을 검증한다.
-TEST(AutomaticCleaningTest, SelectAvoidanceDirectionUsesRightFirstPolicyWhenBothSidesOpen) {
+TEST(AutomaticCleaningTest, SelectAvoidanceDirectionPrioritizesOpenLeftSide) {
     rvc::SensorState sensorState;
-    sensorState.updateSideObstacles(false, false);
-    rvc::CleaningPolicy policy{
-        rvc::AvoidanceDirectionPolicy::RightFirst,
-        rvc::CleaningPowerLevel::Increased,
-        rvc::Duration::seconds(5)};
-    rvc::AutomaticCleaning cleaning{policy};
+    sensorState.updateLeftObstacle(false);
+    rvc::AutomaticCleaning cleaning;
 
+    const auto decision = cleaning.selectAvoidanceDirection(sensorState);
+
+    ASSERT_TRUE(decision.hasSelectedDirection());
+    EXPECT_EQ(*decision.selectedDirection(), rvc::AvoidanceDirection::Left);
+    EXPECT_FALSE(decision.rightProbeRequired());
+    EXPECT_FALSE(decision.backwardRequired());
+}
+
+TEST(AutomaticCleaningTest, SelectAvoidanceDirectionRequiresRightProbeWhenLeftSideIsBlocked) {
+    rvc::SensorState sensorState;
+    sensorState.updateLeftObstacle(true);
+    rvc::AutomaticCleaning cleaning;
+
+    const auto decision = cleaning.selectAvoidanceDirection(sensorState);
+
+    EXPECT_TRUE(decision.rightProbeRequired());
+    EXPECT_FALSE(decision.hasSelectedDirection());
+    EXPECT_FALSE(decision.backwardRequired());
+    EXPECT_TRUE(cleaning.isRightProbeActive());
+    EXPECT_EQ(cleaning.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
+}
+
+TEST(AutomaticCleaningTest, RightProbeOpenSelectsRightDirection) {
+    rvc::SensorState sensorState;
+    sensorState.updateLeftObstacle(true);
+    rvc::AutomaticCleaning cleaning;
+    (void)cleaning.selectAvoidanceDirection(sensorState);
+
+    sensorState.updateFrontObstacle(false);
     const auto decision = cleaning.selectAvoidanceDirection(sensorState);
 
     ASSERT_TRUE(decision.hasSelectedDirection());
     EXPECT_EQ(*decision.selectedDirection(), rvc::AvoidanceDirection::Right);
     EXPECT_FALSE(decision.backwardRequired());
+    EXPECT_FALSE(cleaning.isRightProbeActive());
 }
 
-// 양측 blocked 입력 시 backwardRequired와 Blocked 상태가 되어 UC-005 위임 결정을 검증한다.
-TEST(AutomaticCleaningTest, SelectAvoidanceDirectionRequiresBackwardWhenBothSidesBlocked) {
+TEST(AutomaticCleaningTest, RightProbeBlockedMarksBackwardRequired) {
     rvc::SensorState sensorState;
-    sensorState.updateSideObstacles(true, true);
+    sensorState.updateLeftObstacle(true);
     rvc::AutomaticCleaning cleaning;
+    (void)cleaning.selectAvoidanceDirection(sensorState);
 
+    sensorState.updateFrontObstacle(true);
     const auto decision = cleaning.selectAvoidanceDirection(sensorState);
 
     EXPECT_TRUE(decision.backwardRequired());
     EXPECT_FALSE(decision.hasSelectedDirection());
-    EXPECT_FALSE(decision.availableDirection());
     EXPECT_EQ(cleaning.movementStatus(), rvc::MovementStatus::Blocked);
 }
 
-// 회전 후 전방 blocked 입력 시 다시 stop과 AvoidingObstacle 상태가 되어 재개 실패 분기를 검증한다.
-TEST(AutomaticCleaningTest, ResumeAfterTurnStopsAgainWhenFrontStillBlocked) {
+TEST(AutomaticCleaningTest, HandleThreeSideObstacleStopsWhenBackStateIsUnknown) {
     rvc::SensorState sensorState;
-    sensorState.updateFrontObstacle(true);
     rvc::AutomaticCleaning cleaning;
+    confirmThreeSideBlocked(cleaning, sensorState);
 
-    const auto result = cleaning.resumeAfterTurn(sensorState);
+    const auto result = cleaning.handleThreeSideObstacle(sensorState);
 
     EXPECT_EQ(movementTypes(result), std::vector<rvc::MovementCommandType>{rvc::MovementCommandType::Stop});
-    EXPECT_EQ(cleaning.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
+    EXPECT_EQ(cleaning.movementStatus(), rvc::MovementStatus::Blocked);
 }
 
-// 전/좌/우 blocked+후방 clear 입력 시 stop 후 moveBackward 도메인 명령이 생성되는지 검증한다.
 TEST(AutomaticCleaningTest, HandleThreeSideObstacleStopsThenMovesBackwardWhenBackIsClear) {
     rvc::SensorState sensorState;
-    sensorState.updateObstacles(true, false, true, true);
     rvc::AutomaticCleaning cleaning;
+    confirmThreeSideBlocked(cleaning, sensorState);
+    sensorState.updateBackObstacle(false);
 
     const auto result = cleaning.handleThreeSideObstacle(sensorState);
 
@@ -540,12 +577,12 @@ TEST(AutomaticCleaningTest, HandleThreeSideObstacleStopsThenMovesBackwardWhenBac
     EXPECT_EQ(cleaning.movementStatus(), rvc::MovementStatus::Blocked);
 }
 
-// 이미 Blocked 상태에서 동일 입력 반복 시 stop 중복 없이 moveBackward만 생성되는지 검증한다.
-TEST(AutomaticCleaningTest, HandleThreeSideObstacleDoesNotRepeatStopWhenAlreadyBlocked) {
+TEST(AutomaticCleaningTest, HandleThreeSideObstacleDoesNotRepeatStopAfterUnknownBackStateStopped) {
     rvc::SensorState sensorState;
-    sensorState.updateObstacles(true, false, true, true);
     rvc::AutomaticCleaning cleaning;
+    confirmThreeSideBlocked(cleaning, sensorState);
     (void)cleaning.handleThreeSideObstacle(sensorState);
+    sensorState.updateBackObstacle(false);
 
     const auto result = cleaning.handleThreeSideObstacle(sensorState);
 
@@ -553,10 +590,21 @@ TEST(AutomaticCleaningTest, HandleThreeSideObstacleDoesNotRepeatStopWhenAlreadyB
     EXPECT_EQ(cleaning.movementStatus(), rvc::MovementStatus::Blocked);
 }
 
-// 전방 blocked지만 한쪽 open 입력 시 명령이 없어 UC-005 선행조건 guard를 검증한다.
-TEST(AutomaticCleaningTest, HandleThreeSideObstacleDoesNothingWhenPreconditionIsNotMet) {
+TEST(AutomaticCleaningTest, HandleThreeSideObstacleStopsWhenBackIsBlocked) {
     rvc::SensorState sensorState;
-    sensorState.updateObstacles(true, false, true, false);
+    rvc::AutomaticCleaning cleaning;
+    confirmThreeSideBlocked(cleaning, sensorState);
+    sensorState.updateBackObstacle(true);
+
+    const auto result = cleaning.handleThreeSideObstacle(sensorState);
+
+    EXPECT_EQ(movementTypes(result), std::vector<rvc::MovementCommandType>{rvc::MovementCommandType::Stop});
+    EXPECT_EQ(cleaning.movementStatus(), rvc::MovementStatus::Stopped);
+}
+
+TEST(AutomaticCleaningTest, HandleThreeSideObstacleDoesNothingWhenRightDirectionIsNotConfirmed) {
+    rvc::SensorState sensorState;
+    sensorState.updateObstacles(true, false, true);
     rvc::AutomaticCleaning cleaning;
 
     const auto result = cleaning.handleThreeSideObstacle(sensorState);
@@ -565,19 +613,17 @@ TEST(AutomaticCleaningTest, HandleThreeSideObstacleDoesNothingWhenPreconditionIs
     EXPECT_FALSE(result.cleaningCommand().has_value());
 }
 
-// 사방 blocked 입력 시 stop 명령과 Stopped 상태가 되는 후방 불가 도메인 분기를 검증한다.
-TEST(AutomaticCleaningTest, HandleThreeSideObstacleStopsWhenBackIsBlocked) {
+TEST(AutomaticCleaningTest, ResumeAfterTurnStopsAgainWhenFrontStillBlocked) {
     rvc::SensorState sensorState;
-    sensorState.updateObstacles(true, true, true, true);
+    sensorState.updateFrontObstacle(true);
     rvc::AutomaticCleaning cleaning;
 
-    const auto result = cleaning.handleThreeSideObstacle(sensorState);
+    const auto result = cleaning.resumeAfterTurn(sensorState);
 
     EXPECT_EQ(movementTypes(result), std::vector<rvc::MovementCommandType>{rvc::MovementCommandType::Stop});
-    EXPECT_EQ(cleaning.movementStatus(), rvc::MovementStatus::Stopped);
+    EXPECT_EQ(cleaning.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
 }
 
-// dust=false 입력 시 청소 명령과 타이머가 없어 먼지 감지 guard를 검증한다.
 TEST(AutomaticCleaningTest, HandleDustDetectedDoesNothingWhenDustIsFalse) {
     rvc::SensorState sensorState;
     rvc::AutomaticCleaning cleaning;
@@ -588,14 +634,10 @@ TEST(AutomaticCleaningTest, HandleDustDetectedDoesNothingWhenDustIsFalse) {
     EXPECT_FALSE(result.timerDuration().has_value());
 }
 
-// dust=true+custom duration 입력 시 increased 명령과 타이머가 생성되는 먼지 응답을 검증한다.
 TEST(AutomaticCleaningTest, HandleDustDetectedReturnsIncreasedPowerAndTimer) {
     rvc::SensorState sensorState;
     sensorState.updateDustDetected(true);
-    rvc::CleaningPolicy policy{
-        rvc::AvoidanceDirectionPolicy::LeftFirst,
-        rvc::CleaningPowerLevel::Increased,
-        rvc::Duration::milliseconds(77)};
+    rvc::CleaningPolicy policy{rvc::CleaningPowerLevel::Increased, rvc::Duration::milliseconds(77)};
     rvc::AutomaticCleaning cleaning{policy};
 
     const auto result = cleaning.handleDustDetected(sensorState);
@@ -607,7 +649,6 @@ TEST(AutomaticCleaningTest, HandleDustDetectedReturnsIncreasedPowerAndTimer) {
     EXPECT_TRUE(cleaning.isDustResponseActive());
 }
 
-// 먼지 응답 활성 중 전방 blocked 입력 시 stop과 increased 유지 명령이 함께 생성되는지 검증한다.
 TEST(AutomaticCleaningTest, HandleObstacleWhileDustResponseStopsAndKeepsIncreasedPower) {
     rvc::SensorState dustState;
     dustState.updateDustDetected(true);
@@ -623,7 +664,6 @@ TEST(AutomaticCleaningTest, HandleObstacleWhileDustResponseStopsAndKeepsIncrease
     EXPECT_EQ(result.cleaningCommand()->powerLevel(), rvc::CleaningPowerLevel::Increased);
 }
 
-// 먼지 응답 활성 상태에서 timeout 입력 시 normal 명령과 비활성화 처리를 검증한다.
 TEST(AutomaticCleaningTest, HandleDustResponseTimeoutExpiresActiveDustResponse) {
     rvc::SensorState dustState;
     dustState.updateDustDetected(true);
@@ -637,7 +677,6 @@ TEST(AutomaticCleaningTest, HandleDustResponseTimeoutExpiresActiveDustResponse) 
     EXPECT_FALSE(cleaning.isDustResponseActive());
 }
 
-// 먼지 응답 clear 후 timeout 입력 시 no-op이 되어 명시적 정리 동작을 검증한다.
 TEST(AutomaticCleaningTest, ClearDustResponseStateMakesLaterTimeoutNoOp) {
     rvc::SensorState dustState;
     dustState.updateDustDetected(true);
@@ -651,8 +690,7 @@ TEST(AutomaticCleaningTest, ClearDustResponseStateMakesLaterTimeoutNoOp) {
     EXPECT_FALSE(result.cleaningCommand().has_value());
 }
 
-// pending 표시 후 clear 전까지 먼지 응답이 활성으로 간주되는지 검증한다.
-TEST(AutomaticCleaningTest, MarkDustResponsePendingMakesResponseActiveUntilCleared) {
+TEST(AutomaticCleaningTest, MarkDustResponsePendingMakesResponsePendingUntilCleared) {
     rvc::AutomaticCleaning cleaning;
 
     cleaning.markDustResponsePending();
@@ -664,43 +702,42 @@ TEST(AutomaticCleaningTest, MarkDustResponsePendingMakesResponseActiveUntilClear
     EXPECT_FALSE(cleaning.isDustResponsePending());
 }
 
-// 전/좌/우 blocked+후방 clear 입력 후 three-side와 후진 가능 조건이 계산되는지 검증한다.
-TEST(SensorStateTest, FourDirectionSnapshotMarksThreeSideBlockedAndBackwardAvailable) {
+TEST(SensorStateTest, FrontLeftSnapshotKeepsBackStateUnknown) {
     rvc::SensorState sensorState;
 
-    sensorState.updateObstacles(true, false, true, true);
+    sensorState.updateObstacles(true, true);
 
-    EXPECT_TRUE(sensorState.isThreeSideBlocked());
-    EXPECT_TRUE(sensorState.canMoveBackward());
-    EXPECT_FALSE(sensorState.isBackObstacleDetected());
+    EXPECT_TRUE(sensorState.isFrontObstacleDetected());
+    EXPECT_TRUE(sensorState.isLeftObstacleDetected());
+    EXPECT_FALSE(sensorState.isBackObstacleStateKnown());
+    EXPECT_FALSE(sensorState.canMoveBackward());
 }
 
-// three-side 상태에서 후방 blocked 갱신 시 후진 가능 여부만 바뀌는지 검증한다.
-TEST(SensorStateTest, BackObstacleUpdateChangesBackwardAvailabilityWithoutChangingThreeSideBlock) {
+TEST(SensorStateTest, BackObstacleUpdateChangesBackwardAvailability) {
     rvc::SensorState sensorState;
-    sensorState.updateObstacles(true, false, true, true);
+
+    sensorState.updateBackObstacle(false);
+    EXPECT_TRUE(sensorState.isBackObstacleStateKnown());
+    EXPECT_FALSE(sensorState.isBackObstacleDetected());
+    EXPECT_TRUE(sensorState.canMoveBackward());
 
     sensorState.updateBackObstacle(true);
-
-    EXPECT_TRUE(sensorState.isThreeSideBlocked());
-    EXPECT_FALSE(sensorState.canMoveBackward());
     EXPECT_TRUE(sensorState.isBackObstacleDetected());
+    EXPECT_FALSE(sensorState.canMoveBackward());
 }
 
-// 좌측 blocked/우측 open 입력 후 파생 side state가 회피 판단에 맞게 계산되는지 검증한다.
-TEST(SensorStateTest, SideObstacleStateDerivesAsymmetricSideBlockage) {
+TEST(SensorStateTest, ObstacleSnapshotCarriesKnownBackState) {
     rvc::SensorState sensorState;
 
-    sensorState.updateSideObstacles(true, false);
-    const auto sideState = sensorState.sideObstacleState();
+    sensorState.updateObstacles(true, false, true);
 
-    EXPECT_TRUE(sideState.leftBlocked());
-    EXPECT_FALSE(sideState.rightBlocked());
-    EXPECT_FALSE(sideState.bothBlocked());
-    EXPECT_FALSE(sideState.bothOpen());
+    EXPECT_TRUE(sensorState.isFrontObstacleDetected());
+    EXPECT_TRUE(sensorState.isLeftObstacleDetected());
+    EXPECT_TRUE(sensorState.isBackObstacleStateKnown());
+    EXPECT_FALSE(sensorState.isBackObstacleDetected());
+    EXPECT_TRUE(sensorState.canMoveBackward());
 }
 
-// Left/Right 입력 시 각 Turn 타입과 방향이 보존되어 구동 명령 변환을 검증한다.
 TEST(CommandTest, CreateTurnCommandMapsDirectionToTurnCommandType) {
     const auto left = rvc::MovementCommand::createTurnCommand(rvc::AvoidanceDirection::Left);
     const auto right = rvc::MovementCommand::createTurnCommand(rvc::AvoidanceDirection::Right);
@@ -713,7 +750,6 @@ TEST(CommandTest, CreateTurnCommandMapsDirectionToTurnCommandType) {
     EXPECT_EQ(*right.direction(), rvc::AvoidanceDirection::Right);
 }
 
-// stop 후 moveBackward 추가 시 명령 순서와 마지막 명령이 보존되는지 검증한다.
 TEST(CommandTest, CommandResultPreservesCompoundMovementOrder) {
     auto result = rvc::CommandResult::none()
         .withMovement(rvc::MovementCommand::create(rvc::MovementCommandType::Stop))
@@ -728,7 +764,6 @@ TEST(CommandTest, CommandResultPreservesCompoundMovementOrder) {
     EXPECT_EQ(result.movementCommand()->commandType(), rvc::MovementCommandType::MoveBackward);
 }
 
-// zero duration 입력 시 timer 값이 보존되어 컨트롤러 전달 데이터를 검증한다.
 TEST(CommandTest, CommandResultCarriesTimerDuration) {
     auto result = rvc::CommandResult::none().withTimer(rvc::Duration::milliseconds(0));
 
@@ -736,20 +771,17 @@ TEST(CommandTest, CommandResultCarriesTimerDuration) {
     EXPECT_TRUE(result.timerDuration()->isZero());
 }
 
-// three-side SensorState 입력 시 backwardRequired와 방향 없음 상태가 되는지 검증한다.
-TEST(CommandTest, AvoidanceDecisionMarksBackwardRequiredForThreeSideBlock) {
-    rvc::SensorState sensorState;
-    sensorState.updateObstacles(true, false, true, true);
+TEST(CommandTest, AvoidanceDecisionCanRepresentRightProbeRequirement) {
     auto decision = rvc::AvoidanceDecision::prepareDirectionDecision();
 
-    decision.evaluateBackwardRequired(sensorState);
+    decision.markRightProbeRequired();
 
-    EXPECT_TRUE(decision.backwardRequired());
-    EXPECT_FALSE(decision.availableDirection());
+    EXPECT_TRUE(decision.rightProbeRequired());
     EXPECT_FALSE(decision.hasSelectedDirection());
+    EXPECT_FALSE(decision.backwardRequired());
+    EXPECT_TRUE(decision.availableDirection());
 }
 
-// 방향 선택 후 no-available 처리 시 선택 해제와 backwardRequired=false가 되는지 검증한다.
 TEST(CommandTest, AvoidanceDecisionCanRepresentNoAvailableDirectionWithoutBackwardRequirement) {
     auto decision = rvc::AvoidanceDecision::prepareDirectionDecision();
     decision.select(rvc::AvoidanceDirection::Left);

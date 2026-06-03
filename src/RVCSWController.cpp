@@ -2,6 +2,16 @@
 
 namespace rvc {
 
+namespace {
+
+bool hasEffect(const CommandResult& result) {
+    return !result.movementCommands().empty() ||
+        result.cleaningCommand().has_value() ||
+        result.timerDuration().has_value();
+}
+
+} // namespace
+
 RVCSWController::RVCSWController(DrivingDevice& drivingDevice, CleaningDevice& cleaningDevice, Time& time)
     : drivingDevice_(drivingDevice), cleaningDevice_(cleaningDevice), time_(time) {}
 
@@ -18,6 +28,10 @@ RVCSWController::RVCSWController(
 void RVCSWController::reportFrontObstacleState(bool frontObstacleDetected) {
     sensorState_.updateFrontObstacle(frontObstacleDetected);
 
+    if (applyRightProbeResultIfNeeded()) {
+        return;
+    }
+
     if (!frontObstacleDetected && automaticCleaning_.movementStatus() == MovementStatus::AvoidingObstacle) {
         apply(automaticCleaning_.resumeAfterTurn(sensorState_));
         applyPendingDustResponseIfCleaning();
@@ -25,10 +39,7 @@ void RVCSWController::reportFrontObstacleState(bool frontObstacleDetected) {
     }
 
     if (!frontObstacleDetected && automaticCleaning_.movementStatus() == MovementStatus::Blocked) {
-        const auto decision = automaticCleaning_.selectAvoidanceDirectionByPolicy();
-        if (decision.hasSelectedDirection()) {
-            apply(CommandResult::none().withMovement(MovementCommand::createTurnCommand(*decision.selectedDirection())));
-        }
+        applyAvoidanceDecisionFromCurrentState();
         return;
     }
 
@@ -41,80 +52,68 @@ void RVCSWController::reportFrontObstacleState(bool frontObstacleDetected) {
     applyPendingDustResponseIfCleaning();
 }
 
-void RVCSWController::reportBackObstacleState(bool backObstacleDetected) {
-    sensorState_.updateBackObstacle(backObstacleDetected);
-
-    if (sensorState_.isThreeSideBlocked()) {
-        if (automaticCleaning_.isDustResponseActive()) {
-            apply(automaticCleaning_.handleObstacleWhileDustResponse(sensorState_));
-            return;
-        }
-
-        apply(automaticCleaning_.handleThreeSideObstacle(sensorState_));
+void RVCSWController::reportBackObstacleState(BackObstacleInput backObstacleDetected) {
+    if (backObstacleDetected == BackObstacleInput::Unknown) {
+        sensorState_.clearBackObstacleState();
+    } else {
+        sensorState_.updateBackObstacle(backObstacleDetected == BackObstacleInput::Blocked);
     }
+
+    if (automaticCleaning_.isDustResponseActive()) {
+        apply(automaticCleaning_.handleObstacleWhileDustResponse(sensorState_));
+        return;
+    }
+
+    apply(automaticCleaning_.handleThreeSideObstacle(sensorState_));
 }
 
-void RVCSWController::reportBackObstacleStateUnknown() {
-    sensorState_.clearBackObstacleState();
+void RVCSWController::reportLeftObstacleState(bool leftObstacleDetected) {
+    sensorState_.updateLeftObstacle(leftObstacleDetected);
 
-    if (sensorState_.isThreeSideBlocked()) {
-        if (automaticCleaning_.isDustResponseActive()) {
-            apply(automaticCleaning_.handleObstacleWhileDustResponse(sensorState_));
-            return;
-        }
-
-        apply(automaticCleaning_.handleThreeSideObstacle(sensorState_));
+    if (automaticCleaning_.isRightProbeActive()) {
+        return;
     }
-}
-
-void RVCSWController::reportSideObstacleState(bool leftObstacleDetected, bool rightObstacleDetected) {
-    sensorState_.updateSideObstacles(leftObstacleDetected, rightObstacleDetected);
 
     if (automaticCleaning_.movementStatus() != MovementStatus::AvoidingObstacle &&
         automaticCleaning_.movementStatus() != MovementStatus::Blocked) {
         return;
     }
 
-    const auto decision = automaticCleaning_.selectAvoidanceDirection(sensorState_);
-    if (decision.backwardRequired()) {
-        return;
-    }
-
-    if (!decision.hasSelectedDirection()) {
-        return;
-    }
-
-    apply(CommandResult::none().withMovement(MovementCommand::createTurnCommand(*decision.selectedDirection())));
+    applyAvoidanceDecisionFromCurrentState();
 }
 
 void RVCSWController::reportObstacleState(
     bool frontObstacleDetected,
-    bool leftObstacleDetected,
-    bool rightObstacleDetected) {
-    sensorState_.updateObstacles(frontObstacleDetected, leftObstacleDetected, rightObstacleDetected);
+    BackObstacleInput backObstacleDetected,
+    bool leftObstacleDetected) {
+    if (backObstacleDetected == BackObstacleInput::Unknown) {
+        sensorState_.updateObstacles(frontObstacleDetected, leftObstacleDetected);
+    } else {
+        sensorState_.updateObstacles(
+            frontObstacleDetected,
+            backObstacleDetected == BackObstacleInput::Blocked,
+            leftObstacleDetected);
+    }
 
-    if (sensorState_.isThreeSideBlocked()) {
-        if (automaticCleaning_.isDustResponseActive()) {
-            apply(automaticCleaning_.handleObstacleWhileDustResponse(sensorState_));
-            return;
-        }
-
-        apply(automaticCleaning_.handleThreeSideObstacle(sensorState_));
+    if (applyRightProbeResultIfNeeded()) {
         return;
     }
 
-    if (sensorState_.isFrontObstacleDetected()) {
-        if (automaticCleaning_.movementStatus() == MovementStatus::AvoidingObstacle) {
-            const auto decision = automaticCleaning_.selectAvoidanceDirection(sensorState_);
-            if (decision.backwardRequired()) {
-                apply(automaticCleaning_.handleThreeSideObstacle(sensorState_));
-                return;
-            }
+    if (automaticCleaning_.movementStatus() == MovementStatus::Blocked) {
+        auto result = automaticCleaning_.isDustResponseActive()
+            ? automaticCleaning_.handleObstacleWhileDustResponse(sensorState_)
+            : automaticCleaning_.handleThreeSideObstacle(sensorState_);
+        if (hasEffect(result)) {
+            apply(result);
+            return;
+        }
+    }
 
-            if (decision.hasSelectedDirection()) {
-                apply(CommandResult::none().withMovement(MovementCommand::createTurnCommand(*decision.selectedDirection())));
-                return;
-            }
+    if (sensorState_.isFrontObstacleDetected()) {
+        if (automaticCleaning_.movementStatus() == MovementStatus::AvoidingObstacle ||
+            automaticCleaning_.movementStatus() == MovementStatus::Blocked) {
+            applyAvoidanceDecisionFromCurrentState();
+            return;
         }
 
         if (automaticCleaning_.isDustResponseActive()) {
@@ -133,77 +132,7 @@ void RVCSWController::reportObstacleState(
     }
 
     if (automaticCleaning_.movementStatus() == MovementStatus::Blocked) {
-        const auto decision = automaticCleaning_.selectAvoidanceDirection(sensorState_);
-        if (decision.hasSelectedDirection()) {
-            apply(CommandResult::none().withMovement(MovementCommand::createTurnCommand(*decision.selectedDirection())));
-        }
-        return;
-    }
-
-    if (automaticCleaning_.isDustResponseActive()) {
-        apply(automaticCleaning_.handleObstacleWhileDustResponse(sensorState_));
-        return;
-    }
-
-    apply(automaticCleaning_.handleSensorState(sensorState_));
-    applyPendingDustResponseIfCleaning();
-}
-
-void RVCSWController::reportObstacleState(
-    bool frontObstacleDetected,
-    bool backObstacleDetected,
-    bool leftObstacleDetected,
-    bool rightObstacleDetected) {
-    sensorState_.updateObstacles(
-        frontObstacleDetected,
-        backObstacleDetected,
-        leftObstacleDetected,
-        rightObstacleDetected);
-
-    if (sensorState_.isThreeSideBlocked()) {
-        if (automaticCleaning_.isDustResponseActive()) {
-            apply(automaticCleaning_.handleObstacleWhileDustResponse(sensorState_));
-            return;
-        }
-
-        apply(automaticCleaning_.handleThreeSideObstacle(sensorState_));
-        return;
-    }
-
-    if (sensorState_.isFrontObstacleDetected()) {
-        if (automaticCleaning_.movementStatus() == MovementStatus::AvoidingObstacle) {
-            const auto decision = automaticCleaning_.selectAvoidanceDirection(sensorState_);
-            if (decision.backwardRequired()) {
-                apply(automaticCleaning_.handleThreeSideObstacle(sensorState_));
-                return;
-            }
-
-            if (decision.hasSelectedDirection()) {
-                apply(CommandResult::none().withMovement(MovementCommand::createTurnCommand(*decision.selectedDirection())));
-                return;
-            }
-        }
-
-        if (automaticCleaning_.isDustResponseActive()) {
-            apply(automaticCleaning_.handleObstacleWhileDustResponse(sensorState_));
-            return;
-        }
-
-        apply(automaticCleaning_.handleSensorState(sensorState_));
-        return;
-    }
-
-    if (automaticCleaning_.movementStatus() == MovementStatus::AvoidingObstacle) {
-        apply(automaticCleaning_.resumeAfterTurn(sensorState_));
-        applyPendingDustResponseIfCleaning();
-        return;
-    }
-
-    if (automaticCleaning_.movementStatus() == MovementStatus::Blocked) {
-        const auto decision = automaticCleaning_.selectAvoidanceDirection(sensorState_);
-        if (decision.hasSelectedDirection()) {
-            apply(CommandResult::none().withMovement(MovementCommand::createTurnCommand(*decision.selectedDirection())));
-        }
+        applyAvoidanceDecisionFromCurrentState();
         return;
     }
 
@@ -266,6 +195,45 @@ void RVCSWController::applyPendingDustResponseIfCleaning() {
     }
 
     applyInitialDustResponse(automaticCleaning_.handleDustDetected(sensorState_));
+}
+
+bool RVCSWController::applyRightProbeResultIfNeeded() {
+    if (!automaticCleaning_.isRightProbeActive()) {
+        return false;
+    }
+
+    const auto decision = automaticCleaning_.selectAvoidanceDirection(sensorState_);
+    if (decision.backwardRequired()) {
+        apply(CommandResult::none().withMovement(MovementCommand::createTurnCommand(AvoidanceDirection::Left)));
+        return true;
+    }
+
+    if (decision.hasSelectedDirection() && *decision.selectedDirection() == AvoidanceDirection::Right) {
+        apply(automaticCleaning_.resumeAfterTurn(sensorState_));
+        applyPendingDustResponseIfCleaning();
+        return true;
+    }
+
+    return true;
+}
+
+bool RVCSWController::applyAvoidanceDecisionFromCurrentState() {
+    const auto decision = automaticCleaning_.selectAvoidanceDirection(sensorState_);
+    applyAvoidanceDecision(decision);
+    return decision.rightProbeRequired() || decision.backwardRequired() || decision.hasSelectedDirection();
+}
+
+void RVCSWController::applyAvoidanceDecision(const AvoidanceDecision& decision) {
+    if (decision.rightProbeRequired()) {
+        apply(CommandResult::none().withMovement(MovementCommand::createTurnCommand(AvoidanceDirection::Right)));
+        return;
+    }
+
+    if (decision.backwardRequired() || !decision.hasSelectedDirection()) {
+        return;
+    }
+
+    apply(CommandResult::none().withMovement(MovementCommand::createTurnCommand(*decision.selectedDirection())));
 }
 
 void RVCSWController::executeMovementCommand(const MovementCommand& command) {

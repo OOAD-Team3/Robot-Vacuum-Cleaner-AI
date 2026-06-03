@@ -11,7 +11,6 @@ STATE_FIELDS = {
     "FRONT",
     "BACK",
     "LEFT",
-    "RIGHT",
     "DUST",
     "DRIVE",
     "CLEANING_POWER",

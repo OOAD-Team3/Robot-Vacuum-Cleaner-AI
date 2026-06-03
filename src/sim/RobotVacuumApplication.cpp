@@ -13,7 +13,6 @@ void RobotVacuumApplication::reset() {
     frontObstacleDetected_ = false;
     backObstacleDetected_.reset();
     leftObstacleDetected_ = false;
-    rightObstacleDetected_ = false;
     dustDetected_ = false;
     createController();
 }
@@ -23,43 +22,25 @@ void RobotVacuumApplication::setFrontObstacle(bool detected) {
     controller_->reportFrontObstacleState(detected);
 }
 
-void RobotVacuumApplication::setBackObstacle(BackObstacleInput detected) {
+void RobotVacuumApplication::setBackObstacle(rvc::BackObstacleInput detected) {
     backObstacleDetected_ = toOptionalBackState(detected);
-
-    if (!backObstacleDetected_) {
-        controller_->reportBackObstacleStateUnknown();
-        return;
-    }
-
-    controller_->reportBackObstacleState(*backObstacleDetected_);
+    controller_->reportBackObstacleState(detected);
 }
 
-void RobotVacuumApplication::setSideObstacles(bool leftDetected, bool rightDetected) {
-    leftObstacleDetected_ = leftDetected;
-    rightObstacleDetected_ = rightDetected;
-    controller_->reportSideObstacleState(leftDetected, rightDetected);
+void RobotVacuumApplication::setLeftObstacle(bool detected) {
+    leftObstacleDetected_ = detected;
+    controller_->reportLeftObstacleState(detected);
 }
 
 void RobotVacuumApplication::setObstacleState(
     bool frontDetected,
-    BackObstacleInput backDetected,
-    bool leftDetected,
-    bool rightDetected) {
+    rvc::BackObstacleInput backDetected,
+    bool leftDetected) {
     frontObstacleDetected_ = frontDetected;
     backObstacleDetected_ = toOptionalBackState(backDetected);
     leftObstacleDetected_ = leftDetected;
-    rightObstacleDetected_ = rightDetected;
 
-    if (backObstacleDetected_) {
-        controller_->reportObstacleState(
-            frontDetected,
-            *backObstacleDetected_,
-            leftDetected,
-            rightDetected);
-        return;
-    }
-
-    controller_->reportObstacleState(frontDetected, leftDetected, rightDetected);
+    controller_->reportObstacleState(frontDetected, backDetected, leftDetected);
 }
 
 void RobotVacuumApplication::reportDustDetected() {
@@ -84,7 +65,6 @@ ControllerStateSnapshot RobotVacuumApplication::snapshot() const {
         frontObstacleDetected_,
         backObstacleDetected_,
         leftObstacleDetected_,
-        rightObstacleDetected_,
         dustDetected_,
         drivingDevice_.lastCommand(),
         cleaningDevice_.powerState(),
@@ -95,13 +75,13 @@ void RobotVacuumApplication::createController() {
     controller_ = std::make_unique<RVCSWController>(drivingDevice_, cleaningDevice_, time_);
 }
 
-std::optional<bool> RobotVacuumApplication::toOptionalBackState(BackObstacleInput detected) const {
+std::optional<bool> RobotVacuumApplication::toOptionalBackState(rvc::BackObstacleInput detected) const {
     switch (detected) {
-    case BackObstacleInput::Clear:
+    case rvc::BackObstacleInput::Clear:
         return false;
-    case BackObstacleInput::Blocked:
+    case rvc::BackObstacleInput::Blocked:
         return true;
-    case BackObstacleInput::Unknown:
+    case rvc::BackObstacleInput::Unknown:
         return std::nullopt;
     }
 

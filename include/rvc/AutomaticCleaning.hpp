@@ -8,13 +8,30 @@
 
 namespace rvc {
 
+class RightDirectionProbe {
+public:
+    void start();
+    void resolveWithFrontObstacle(bool frontObstacleDetected);
+    void clear();
+
+    bool isActive() const;
+    bool isOpen() const;
+    bool isBlocked() const;
+    bool restoreOriginalHeadingRequired() const;
+    RightProbeResult result() const;
+
+private:
+    bool active_{false};
+    RightProbeResult result_{RightProbeResult::Unknown};
+    bool restoreOriginalHeadingRequired_{false};
+};
+
 class AutomaticCleaning {
 public:
     explicit AutomaticCleaning(CleaningPolicy policy = CleaningPolicy{});
 
     CommandResult handleSensorState(const SensorState& sensorState);
     AvoidanceDecision selectAvoidanceDirection(const SensorState& sensorState);
-    AvoidanceDecision selectAvoidanceDirectionByPolicy();
     CommandResult resumeAfterTurn(const SensorState& sensorState);
     CommandResult handleThreeSideObstacle(const SensorState& sensorState);
     CommandResult handleDustDetected(const SensorState& sensorState);
@@ -30,13 +47,18 @@ public:
     MovementStatus movementStatus() const;
     bool isDustResponseActive() const;
     bool isDustResponsePending() const;
+    bool isRightProbeActive() const;
 
 private:
     CommandResult normalCleaningResult();
     CommandResult maintainCurrentCleaningPower(CommandResult result);
+    void clearThreeSideBlock();
 
     MovementStatus movementStatus_{MovementStatus::Stopped};
     CleaningPolicy policy_;
+    RightDirectionProbe rightDirectionProbe_;
+    bool threeSideBlockedConfirmed_{false};
+    bool threeSideStopIssued_{false};
     DustResponse dustResponse_;
     bool dustResponsePending_{false};
 };

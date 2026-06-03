@@ -118,23 +118,20 @@ ParsedCommand ParsedCommand::back(BackObstacleValue detected) {
     return command;
 }
 
-ParsedCommand ParsedCommand::side(bool leftDetected, bool rightDetected) {
-    ParsedCommand command{CommandType::SetSide};
-    command.leftObstacleDetected_ = leftDetected;
-    command.rightObstacleDetected_ = rightDetected;
+ParsedCommand ParsedCommand::left(bool detected) {
+    ParsedCommand command{CommandType::SetLeft};
+    command.leftObstacleDetected_ = detected;
     return command;
 }
 
 ParsedCommand ParsedCommand::obstacles(
     bool frontDetected,
     BackObstacleValue backDetected,
-    bool leftDetected,
-    bool rightDetected) {
+    bool leftDetected) {
     ParsedCommand command{CommandType::SetObstacles};
     command.frontObstacleDetected_ = frontDetected;
     command.backObstacleDetected_ = backDetected;
     command.leftObstacleDetected_ = leftDetected;
-    command.rightObstacleDetected_ = rightDetected;
     return command;
 }
 
@@ -152,10 +149,6 @@ BackObstacleValue ParsedCommand::backObstacleDetected() const {
 
 bool ParsedCommand::leftObstacleDetected() const {
     return leftObstacleDetected_;
-}
-
-bool ParsedCommand::rightObstacleDetected() const {
-    return rightObstacleDetected_;
 }
 
 ParsedCommand::ParsedCommand(CommandType type) : type_(type) {}
@@ -249,42 +242,34 @@ ParseResult CommandParser::parse(const std::string& line) const {
             : ParseResult::failure(ParseError::InvalidArgument);
     }
 
-    if (commandName == "SET_SIDE") {
-        if (words.size() != 3) {
+    if (commandName == "SET_LEFT") {
+        if (words.size() != 2) {
             return ParseResult::failure(ParseError::InvalidArgument);
         }
 
-        std::map<std::string, std::string> values;
-        if (!collectKeyValues(words, 1, values) || values.size() != 2 ||
-            values.find("LEFT") == values.end() || values.find("RIGHT") == values.end()) {
-            return ParseResult::failure(ParseError::InvalidArgument);
-        }
-
-        const auto left = parseBool(values["LEFT"]);
-        const auto right = parseBool(values["RIGHT"]);
-        return left && right
-            ? ParseResult::success(ParsedCommand::side(*left, *right))
+        const auto left = parseBool(words[1]);
+        return left
+            ? ParseResult::success(ParsedCommand::left(*left))
             : ParseResult::failure(ParseError::InvalidArgument);
     }
 
     if (commandName == "SET_OBSTACLES") {
-        if (words.size() != 5) {
+        if (words.size() != 4) {
             return ParseResult::failure(ParseError::InvalidArgument);
         }
 
         std::map<std::string, std::string> values;
-        if (!collectKeyValues(words, 1, values) || values.size() != 4 ||
+        if (!collectKeyValues(words, 1, values) || values.size() != 3 ||
             values.find("FRONT") == values.end() || values.find("BACK") == values.end() ||
-            values.find("LEFT") == values.end() || values.find("RIGHT") == values.end()) {
+            values.find("LEFT") == values.end()) {
             return ParseResult::failure(ParseError::InvalidArgument);
         }
 
         const auto front = parseBool(values["FRONT"]);
         const auto back = parseBackValue(values["BACK"]);
         const auto left = parseBool(values["LEFT"]);
-        const auto right = parseBool(values["RIGHT"]);
-        return front && back && left && right
-            ? ParseResult::success(ParsedCommand::obstacles(*front, *back, *left, *right))
+        return front && back && left
+            ? ParseResult::success(ParsedCommand::obstacles(*front, *back, *left))
             : ParseResult::failure(ParseError::InvalidArgument);
     }
 

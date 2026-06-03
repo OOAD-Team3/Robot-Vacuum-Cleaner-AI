@@ -2,13 +2,47 @@
 
 namespace rvc {
 
+void RightDirectionProbe::start() {
+    active_ = true;
+    result_ = RightProbeResult::Unknown;
+    restoreOriginalHeadingRequired_ = false;
+}
+
+void RightDirectionProbe::resolveWithFrontObstacle(bool frontObstacleDetected) {
+    active_ = false;
+    result_ = frontObstacleDetected ? RightProbeResult::Blocked : RightProbeResult::Open;
+    restoreOriginalHeadingRequired_ = frontObstacleDetected;
+}
+
+void RightDirectionProbe::clear() {
+    active_ = false;
+    result_ = RightProbeResult::Unknown;
+    restoreOriginalHeadingRequired_ = false;
+}
+
+bool RightDirectionProbe::isActive() const {
+    return active_;
+}
+
+bool RightDirectionProbe::isOpen() const {
+    return result_ == RightProbeResult::Open;
+}
+
+bool RightDirectionProbe::isBlocked() const {
+    return result_ == RightProbeResult::Blocked;
+}
+
+bool RightDirectionProbe::restoreOriginalHeadingRequired() const {
+    return restoreOriginalHeadingRequired_;
+}
+
+RightProbeResult RightDirectionProbe::result() const {
+    return result_;
+}
+
 AutomaticCleaning::AutomaticCleaning(CleaningPolicy policy) : policy_(policy) {}
 
 CommandResult AutomaticCleaning::handleSensorState(const SensorState& sensorState) {
-    if (sensorState.isThreeSideBlocked()) {
-        return handleThreeSideObstacle(sensorState);
-    }
-
     if (sensorState.isFrontObstacleDetected()) {
         movementStatus_ = MovementStatus::AvoidingObstacle;
         return CommandResult::none().withMovement(MovementCommand::create(MovementCommandType::Stop));
@@ -19,34 +53,34 @@ CommandResult AutomaticCleaning::handleSensorState(const SensorState& sensorStat
 
 AvoidanceDecision AutomaticCleaning::selectAvoidanceDirection(const SensorState& sensorState) {
     auto decision = AvoidanceDecision::prepareDirectionDecision();
-    const auto sideState = sensorState.sideObstacleState();
 
-    if (sideState.bothBlocked()) {
+    if (rightDirectionProbe_.isActive()) {
+        rightDirectionProbe_.resolveWithFrontObstacle(sensorState.isFrontObstacleDetected());
+
+        if (rightDirectionProbe_.isOpen()) {
+            decision.select(AvoidanceDirection::Right);
+            clearThreeSideBlock();
+            movementStatus_ = MovementStatus::AvoidingObstacle;
+            return decision;
+        }
+
+        threeSideBlockedConfirmed_ = true;
+        threeSideStopIssued_ = false;
         decision.markBackwardRequired();
         movementStatus_ = MovementStatus::Blocked;
         return decision;
     }
 
-    if (sideState.leftBlocked()) {
-        decision.select(AvoidanceDirection::Right);
-        movementStatus_ = MovementStatus::AvoidingObstacle;
-        return decision;
-    }
-
-    if (sideState.rightBlocked()) {
+    if (!sensorState.isLeftObstacleDetected()) {
         decision.select(AvoidanceDirection::Left);
+        clearThreeSideBlock();
         movementStatus_ = MovementStatus::AvoidingObstacle;
         return decision;
     }
 
-    decision.selectByPolicy(policy_.avoidanceDirectionPolicy());
-    movementStatus_ = MovementStatus::AvoidingObstacle;
-    return decision;
-}
-
-AvoidanceDecision AutomaticCleaning::selectAvoidanceDirectionByPolicy() {
-    auto decision = AvoidanceDecision::prepareDirectionDecision();
-    decision.selectByPolicy(policy_.avoidanceDirectionPolicy());
+    clearThreeSideBlock();
+    rightDirectionProbe_.start();
+    decision.markRightProbeRequired();
     movementStatus_ = MovementStatus::AvoidingObstacle;
     return decision;
 }
@@ -63,29 +97,33 @@ CommandResult AutomaticCleaning::resumeAfterTurn(const SensorState& sensorState)
 }
 
 CommandResult AutomaticCleaning::handleThreeSideObstacle(const SensorState& sensorState) {
-    if (!sensorState.isThreeSideBlocked()) {
+    if (!threeSideBlockedConfirmed_) {
         return CommandResult::none();
     }
 
     if (!sensorState.isBackObstacleStateKnown()) {
         movementStatus_ = MovementStatus::Blocked;
+        threeSideStopIssued_ = true;
         return CommandResult::none().withMovement(MovementCommand::create(MovementCommandType::Stop));
     }
 
     if (!sensorState.canMoveBackward()) {
         movementStatus_ = MovementStatus::Stopped;
+        threeSideStopIssued_ = true;
         return CommandResult::none().withMovement(MovementCommand::create(MovementCommandType::Stop));
     }
 
-    const auto wasAlreadyBlocked = movementStatus_ == MovementStatus::Blocked;
     movementStatus_ = MovementStatus::Blocked;
 
     auto result = CommandResult::none();
-    if (!wasAlreadyBlocked) {
+    if (!threeSideStopIssued_) {
         result.withMovement(MovementCommand::create(MovementCommandType::Stop));
+        threeSideStopIssued_ = true;
     }
 
-    return result.withMovement(MovementCommand::create(MovementCommandType::MoveBackward));
+    result.withMovement(MovementCommand::create(MovementCommandType::MoveBackward));
+    clearThreeSideBlock();
+    return result;
 }
 
 CommandResult AutomaticCleaning::handleDustDetected(const SensorState& sensorState) {
@@ -104,7 +142,9 @@ CommandResult AutomaticCleaning::handleDustDetected(const SensorState& sensorSta
 }
 
 CommandResult AutomaticCleaning::handleObstacleWhileDustResponse(const SensorState& sensorState) {
-    auto result = handleSensorState(sensorState);
+    auto result = threeSideBlockedConfirmed_
+        ? handleThreeSideObstacle(sensorState)
+        : handleSensorState(sensorState);
 
     if (dustResponse_.isActive()) {
         result.withCleaning(CleaningCommand::create(dustResponse_.currentPowerLevel()));
@@ -156,8 +196,13 @@ bool AutomaticCleaning::isDustResponsePending() const {
     return dustResponsePending_;
 }
 
+bool AutomaticCleaning::isRightProbeActive() const {
+    return rightDirectionProbe_.isActive();
+}
+
 CommandResult AutomaticCleaning::normalCleaningResult() {
     movementStatus_ = MovementStatus::Cleaning;
+    clearThreeSideBlock();
 
     auto result = CommandResult::none()
         .withMovement(MovementCommand::create(MovementCommandType::MoveForward));
@@ -173,6 +218,14 @@ CommandResult AutomaticCleaning::maintainCurrentCleaningPower(CommandResult resu
 
     result.withCleaning(CleaningCommand::create(policy_.normalPowerLevel()));
     return result;
+}
+
+void AutomaticCleaning::clearThreeSideBlock() {
+    threeSideBlockedConfirmed_ = false;
+    threeSideStopIssued_ = false;
+    if (!rightDirectionProbe_.isActive()) {
+        rightDirectionProbe_.clear();
+    }
 }
 
 } // namespace rvc

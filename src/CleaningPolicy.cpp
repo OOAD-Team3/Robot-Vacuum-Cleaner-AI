@@ -2,12 +2,8 @@
 
 namespace rvc {
 
-CleaningPolicy::CleaningPolicy(
-    AvoidanceDirectionPolicy avoidanceDirectionPolicy,
-    CleaningPowerLevel increasedPowerLevel,
-    Duration increasedPowerDuration)
-    : avoidanceDirectionPolicy_(avoidanceDirectionPolicy),
-      increasedPowerLevel_(increasedPowerLevel),
+CleaningPolicy::CleaningPolicy(CleaningPowerLevel increasedPowerLevel, Duration increasedPowerDuration)
+    : increasedPowerLevel_(increasedPowerLevel),
       increasedPowerDuration_(increasedPowerDuration) {}
 
 CleaningPowerLevel CleaningPolicy::normalPowerLevel() const {
@@ -22,9 +18,4 @@ Duration CleaningPolicy::increasedPowerDuration() const {
     return increasedPowerDuration_;
 }
 
-AvoidanceDirectionPolicy CleaningPolicy::avoidanceDirectionPolicy() const {
-    return avoidanceDirectionPolicy_;
-}
-
 } // namespace rvc
-

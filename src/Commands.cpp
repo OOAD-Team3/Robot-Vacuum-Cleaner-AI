@@ -79,36 +79,33 @@ AvoidanceDecision AvoidanceDecision::prepareDirectionDecision() {
 
 void AvoidanceDecision::select(AvoidanceDirection direction) {
     selectedDirection_ = direction;
+    rightProbeRequired_ = false;
     backwardRequired_ = false;
     availableDirection_ = true;
 }
 
-void AvoidanceDecision::selectByPolicy(AvoidanceDirectionPolicy policy) {
-    if (policy == AvoidanceDirectionPolicy::RightFirst) {
-        select(AvoidanceDirection::Right);
-        return;
-    }
-
-    select(AvoidanceDirection::Left);
+void AvoidanceDecision::evaluateBackwardRequired(const SensorState& sensorState) {
+    (void)sensorState;
+    backwardRequired_ = false;
 }
 
-void AvoidanceDecision::evaluateBackwardRequired(const SensorState& sensorState) {
-    if (sensorState.isThreeSideBlocked()) {
-        markBackwardRequired();
-        return;
-    }
-
+void AvoidanceDecision::markRightProbeRequired() {
+    selectedDirection_.reset();
+    rightProbeRequired_ = true;
     backwardRequired_ = false;
+    availableDirection_ = true;
 }
 
 void AvoidanceDecision::markBackwardRequired() {
     selectedDirection_.reset();
+    rightProbeRequired_ = false;
     backwardRequired_ = true;
     availableDirection_ = false;
 }
 
 void AvoidanceDecision::markNoAvailableDirection() {
     selectedDirection_.reset();
+    rightProbeRequired_ = false;
     backwardRequired_ = false;
     availableDirection_ = false;
 }
@@ -119,6 +116,10 @@ bool AvoidanceDecision::hasSelectedDirection() const {
 
 std::optional<AvoidanceDirection> AvoidanceDecision::selectedDirection() const {
     return selectedDirection_;
+}
+
+bool AvoidanceDecision::rightProbeRequired() const {
+    return rightProbeRequired_;
 }
 
 bool AvoidanceDecision::backwardRequired() const {

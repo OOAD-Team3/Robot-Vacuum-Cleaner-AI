@@ -7,7 +7,6 @@ ControllerStateSnapshot::ControllerStateSnapshot(
     bool frontObstacleDetected,
     std::optional<bool> backObstacleDetected,
     bool leftObstacleDetected,
-    bool rightObstacleDetected,
     bool dustDetected,
     DriveCommand driveCommand,
     CleaningPowerState cleaningPower,
@@ -16,7 +15,6 @@ ControllerStateSnapshot::ControllerStateSnapshot(
       frontObstacleDetected_(frontObstacleDetected),
       backObstacleDetected_(backObstacleDetected),
       leftObstacleDetected_(leftObstacleDetected),
-      rightObstacleDetected_(rightObstacleDetected),
       dustDetected_(dustDetected),
       driveCommand_(driveCommand),
       cleaningPower_(cleaningPower),
@@ -36,10 +34,6 @@ std::optional<bool> ControllerStateSnapshot::backObstacleDetected() const {
 
 bool ControllerStateSnapshot::leftObstacleDetected() const {
     return leftObstacleDetected_;
-}
-
-bool ControllerStateSnapshot::rightObstacleDetected() const {
-    return rightObstacleDetected_;
 }
 
 bool ControllerStateSnapshot::dustDetected() const {

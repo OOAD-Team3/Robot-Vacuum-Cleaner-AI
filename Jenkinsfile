@@ -366,6 +366,8 @@ pipeline {
                 sh '''
                     gcovr -r . \
                       --sonarqube ${COVERAGE_XML} \
+                      --exclude-unreachable-branches \
+                      --exclude-throw-branches \
                       --exclude "${BUILD_DIR}/.*" \
                       --exclude '.*/_deps/.*' \
                       --exclude 'tests/.*' \
@@ -376,6 +378,8 @@ pipeline {
 
                     gcovr -r . \
                       --html-details ${COVERAGE_HTML} \
+                      --exclude-unreachable-branches \
+                      --exclude-throw-branches \
                       --exclude "${BUILD_DIR}/.*" \
                       --exclude '.*/_deps/.*' \
                       --exclude 'tests/.*' \

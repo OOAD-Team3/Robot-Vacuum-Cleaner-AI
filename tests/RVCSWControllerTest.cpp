@@ -128,6 +128,14 @@ TEST_F(RVCSWControllerTest, UC001MovesForwardAndStartsNormalCleaningWhenFrontIsC
     EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Cleaning);
 }
 
+TEST_F(RVCSWControllerTest, UC001CombinedKnownBackSnapshotMovesForwardWhenFrontIsClear) {
+    controller.reportObstacleState(false, rvc::BackObstacleInput::Clear, false);
+
+    EXPECT_EQ(cleaner.calls, std::vector<std::string>{"setNormal"});
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"moveForward"});
+    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Cleaning);
+}
+
 TEST(RVCSWControllerOrderTest, UC001AppliesCleaningCommandBeforeMovementCommand) {
     std::vector<std::string> orderedCalls;
     DrivingDeviceStub drive;
@@ -152,6 +160,14 @@ TEST_F(RVCSWControllerTest, UC002StopsWhenFrontObstacleIsDetected) {
 
 TEST_F(RVCSWControllerTest, UC002CombinedObstacleSnapshotStopsOnFrontObstacle) {
     controller.reportObstacleState(true, rvc::BackObstacleInput::Unknown, false);
+
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"stop"});
+    EXPECT_TRUE(cleaner.calls.empty());
+    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
+}
+
+TEST_F(RVCSWControllerTest, UC002CombinedKnownBackSnapshotStopsOnFrontObstacle) {
+    controller.reportObstacleState(true, rvc::BackObstacleInput::Clear, false);
 
     EXPECT_EQ(drive.calls, std::vector<std::string>{"stop"});
     EXPECT_TRUE(cleaner.calls.empty());
@@ -220,6 +236,16 @@ TEST_F(RVCSWControllerTest, UC003RightProbeOpenSnapshotResumesWithoutReturningTo
     startRightProbe();
 
     controller.reportObstacleState(false, rvc::BackObstacleInput::Unknown, true);
+
+    EXPECT_EQ(cleaner.calls, std::vector<std::string>{"setNormal"});
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"moveForward"});
+    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Cleaning);
+}
+
+TEST_F(RVCSWControllerTest, UC003RightProbeOpenKnownBackSnapshotResumesWithoutReturningToOriginalHeading) {
+    startRightProbe();
+
+    controller.reportObstacleState(false, rvc::BackObstacleInput::Clear, true);
 
     EXPECT_EQ(cleaner.calls, std::vector<std::string>{"setNormal"});
     EXPECT_EQ(drive.calls, std::vector<std::string>{"moveForward"});
@@ -331,6 +357,26 @@ TEST_F(RVCSWControllerTest, UC005CombinedSnapshotAfterBackwardUsesLeftSensorBefo
     controller.reportObstacleState(true, rvc::BackObstacleInput::Unknown, false);
 
     EXPECT_EQ(drive.calls, std::vector<std::string>{"turnLeft"});
+    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
+}
+
+TEST_F(RVCSWControllerTest, UC005FrontClearAfterRightProbeBlockedStartsNewRightProbeWhenLeftStillBlocked) {
+    confirmThreeSideBlocked();
+
+    controller.reportFrontObstacleState(false);
+
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"turnRight"});
+    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
+}
+
+TEST_F(RVCSWControllerTest, UC005CombinedSnapshotFrontClearAfterBackwardStartsRightProbeWhenLeftStillBlocked) {
+    confirmThreeSideBlocked();
+    controller.reportBackObstacleState(rvc::BackObstacleInput::Clear);
+    clearDeviceCalls();
+
+    controller.reportObstacleState(false, rvc::BackObstacleInput::Unknown, true);
+
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"turnRight"});
     EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
 }
 
@@ -476,6 +522,40 @@ TEST_F(RVCSWControllerTest, UC006KeepsIncreasedPowerWhenBackSensorCompletesThree
 
     EXPECT_EQ(cleaner.calls, std::vector<std::string>{"keepIncreased"});
     EXPECT_EQ(drive.calls, (std::vector<std::string>{"stop", "moveBackward"}));
+}
+
+TEST_F(RVCSWControllerTest, UC006KeepsIncreasedPowerWhenBackSensorIsUnknownDuringThreeSideFlow) {
+    controller.reportFrontObstacleState(false);
+    clearDeviceCalls();
+
+    controller.reportDustDetected();
+    controller.reportFrontObstacleState(true);
+    controller.reportLeftObstacleState(true);
+    controller.reportFrontObstacleState(true);
+    clearDeviceCalls();
+
+    controller.reportBackObstacleState(rvc::BackObstacleInput::Unknown);
+
+    EXPECT_EQ(cleaner.calls, std::vector<std::string>{"keepIncreased"});
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"stop"});
+    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Blocked);
+}
+
+TEST_F(RVCSWControllerTest, UC006KeepsIncreasedPowerWhenBackSensorIsBlockedDuringThreeSideFlow) {
+    controller.reportFrontObstacleState(false);
+    clearDeviceCalls();
+
+    controller.reportDustDetected();
+    controller.reportFrontObstacleState(true);
+    controller.reportLeftObstacleState(true);
+    controller.reportFrontObstacleState(true);
+    clearDeviceCalls();
+
+    controller.reportBackObstacleState(rvc::BackObstacleInput::Blocked);
+
+    EXPECT_EQ(cleaner.calls, std::vector<std::string>{"keepIncreased"});
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"stop"});
+    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Stopped);
 }
 
 TEST_F(RVCSWControllerTest, UC006KeepsIncreasedPowerWhileContinuingForwardCleaning) {
@@ -926,6 +1006,44 @@ TEST(CommandTest, AvoidanceDecisionCanRepresentRightProbeRequirement) {
 
     EXPECT_TRUE(decision.rightProbeRequired());
     EXPECT_FALSE(decision.hasSelectedDirection());
+    EXPECT_FALSE(decision.backwardRequired());
+    EXPECT_TRUE(decision.availableDirection());
+}
+
+TEST(CommandTest, AvoidanceDecisionCanRepresentBackwardRequirement) {
+    auto decision = rvc::AvoidanceDecision::prepareDirectionDecision();
+
+    decision.markBackwardRequired();
+
+    EXPECT_FALSE(decision.rightProbeRequired());
+    EXPECT_FALSE(decision.hasSelectedDirection());
+    EXPECT_TRUE(decision.backwardRequired());
+    EXPECT_FALSE(decision.availableDirection());
+}
+
+TEST(CommandTest, AvoidanceDecisionSelectClearsProbeAndBackwardFlags) {
+    auto decision = rvc::AvoidanceDecision::prepareDirectionDecision();
+    decision.markRightProbeRequired();
+    decision.markBackwardRequired();
+
+    decision.select(rvc::AvoidanceDirection::Right);
+
+    ASSERT_TRUE(decision.hasSelectedDirection());
+    EXPECT_EQ(*decision.selectedDirection(), rvc::AvoidanceDirection::Right);
+    EXPECT_FALSE(decision.rightProbeRequired());
+    EXPECT_FALSE(decision.backwardRequired());
+    EXPECT_TRUE(decision.availableDirection());
+}
+
+TEST(CommandTest, AvoidanceDecisionEvaluateBackwardRequiredLeavesDecisionAvailable) {
+    rvc::SensorState sensorState;
+    auto decision = rvc::AvoidanceDecision::prepareDirectionDecision();
+    decision.select(rvc::AvoidanceDirection::Left);
+
+    decision.evaluateBackwardRequired(sensorState);
+
+    ASSERT_TRUE(decision.hasSelectedDirection());
+    EXPECT_EQ(*decision.selectedDirection(), rvc::AvoidanceDirection::Left);
     EXPECT_FALSE(decision.backwardRequired());
     EXPECT_TRUE(decision.availableDirection());
 }

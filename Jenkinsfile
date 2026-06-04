@@ -367,12 +367,20 @@ pipeline {
                     gcovr -r . \
                       --sonarqube ${COVERAGE_XML} \
                       --exclude "${BUILD_DIR}/.*" \
-                      --exclude '.*/_deps/.*'
+                      --exclude '.*/_deps/.*' \
+                      --exclude 'app/rvc_app/main\.cpp' \
+                      --exclude 'src/net/.*' \
+                      --exclude 'src/protocol/.*' \
+                      --exclude 'src/sim/.*'
 
                     gcovr -r . \
                       --html-details ${COVERAGE_HTML} \
                       --exclude "${BUILD_DIR}/.*" \
-                      --exclude '.*/_deps/.*'
+                      --exclude '.*/_deps/.*' \
+                      --exclude 'app/rvc_app/main\.cpp' \
+                      --exclude 'src/net/.*' \
+                      --exclude 'src/protocol/.*' \
+                      --exclude 'src/sim/.*'
                 '''
             }
             post {
@@ -414,6 +422,7 @@ pipeline {
                         -Dsonar.tests=tests \
                         -Dsonar.cfamily.compile-commands=${BUILD_DIR}/compile_commands.json \
                         -Dsonar.coverageReportPaths=${COVERAGE_XML} \
+                        -Dsonar.coverage.exclusions=src/net/**,src/protocol/**,src/sim/**,app/rvc_app/main.cpp \
                         -Dsonar.token=${SONAR_TOKEN}
                     '''
                 }

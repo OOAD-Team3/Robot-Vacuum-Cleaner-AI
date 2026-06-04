@@ -368,6 +368,7 @@ pipeline {
                       --sonarqube ${COVERAGE_XML} \
                       --exclude "${BUILD_DIR}/.*" \
                       --exclude '.*/_deps/.*' \
+                      --exclude 'tests/.*' \
                       --exclude 'app/rvc_app/main[.]cpp' \
                       --exclude 'src/net/.*' \
                       --exclude 'src/protocol/.*' \
@@ -377,6 +378,7 @@ pipeline {
                       --html-details ${COVERAGE_HTML} \
                       --exclude "${BUILD_DIR}/.*" \
                       --exclude '.*/_deps/.*' \
+                      --exclude 'tests/.*' \
                       --exclude 'app/rvc_app/main[.]cpp' \
                       --exclude 'src/net/.*' \
                       --exclude 'src/protocol/.*' \
@@ -422,7 +424,7 @@ pipeline {
                         -Dsonar.tests=tests \
                         -Dsonar.cfamily.compile-commands=${BUILD_DIR}/compile_commands.json \
                         -Dsonar.coverageReportPaths=${COVERAGE_XML} \
-                        -Dsonar.coverage.exclusions=src/net/**,src/protocol/**,src/sim/**,app/rvc_app/main.cpp \
+                        -Dsonar.coverage.exclusions=tests/**,src/net/**,src/protocol/**,src/sim/**,app/rvc_app/main.cpp \
                         -Dsonar.token=${SONAR_TOKEN}
                     '''
                 }

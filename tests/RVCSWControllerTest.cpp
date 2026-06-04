@@ -6,6 +6,7 @@
 
 #include "rvc/AutomaticCleaning.hpp"
 #include "rvc/Commands.hpp"
+#include "rvc/DustResponse.hpp"
 #include "rvc/RVCSWController.hpp"
 #include "rvc/SensorState.hpp"
 
@@ -253,6 +254,24 @@ TEST_F(RVCSWControllerTest, UC005CombinedSnapshotWithUnknownBackStopsAfterRightP
     EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Blocked);
 }
 
+TEST_F(RVCSWControllerTest, UC005CombinedSnapshotWithClearBackMovesBackwardAfterRightProbeBlocked) {
+    confirmThreeSideBlocked();
+
+    controller.reportObstacleState(true, rvc::BackObstacleInput::Clear, true);
+
+    EXPECT_EQ(drive.calls, (std::vector<std::string>{"stop", "moveBackward"}));
+    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Blocked);
+}
+
+TEST_F(RVCSWControllerTest, UC005CombinedSnapshotWithBlockedBackStopsAfterRightProbeBlocked) {
+    confirmThreeSideBlocked();
+
+    controller.reportObstacleState(true, rvc::BackObstacleInput::Blocked, true);
+
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"stop"});
+    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Stopped);
+}
+
 TEST_F(RVCSWControllerTest, UC005StopsAndMovesBackwardWhenBackIsClearAfterRightProbeBlocked) {
     confirmThreeSideBlocked();
 
@@ -301,6 +320,17 @@ TEST_F(RVCSWControllerTest, UC005AfterBackwardCanStartAnotherRightProbeWhenLeftI
     controller.reportLeftObstacleState(true);
 
     EXPECT_EQ(drive.calls, std::vector<std::string>{"turnRight"});
+    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
+}
+
+TEST_F(RVCSWControllerTest, UC005CombinedSnapshotAfterBackwardUsesLeftSensorBeforeResuming) {
+    confirmThreeSideBlocked();
+    controller.reportBackObstacleState(rvc::BackObstacleInput::Clear);
+    clearDeviceCalls();
+
+    controller.reportObstacleState(true, rvc::BackObstacleInput::Unknown, false);
+
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"turnLeft"});
     EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
 }
 
@@ -359,6 +389,23 @@ TEST(RVCSWControllerPolicyTest, UC006UsesInjectedDustResponseDuration) {
     EXPECT_EQ(time.startedDurations, std::vector<int>{1234});
 }
 
+TEST(RVCSWControllerPolicyTest, UC006ZeroDustResponseDurationDoesNotStartTimer) {
+    DrivingDeviceStub drive;
+    CleaningDeviceStub cleaner;
+    TimeStub time;
+    rvc::CleaningPolicy policy{rvc::CleaningPowerLevel::Increased, rvc::Duration::milliseconds(0)};
+    rvc::RVCSWController controller{drive, cleaner, time, rvc::AutomaticCleaning{policy}};
+
+    controller.reportFrontObstacleState(false);
+    drive.calls.clear();
+    cleaner.calls.clear();
+
+    controller.reportDustDetected();
+
+    EXPECT_EQ(cleaner.calls, std::vector<std::string>{"setIncreased"});
+    EXPECT_TRUE(time.startedDurations.empty());
+}
+
 TEST_F(RVCSWControllerTest, UC006KeepsIncreasedPowerWhenObstacleDetectedDuringDustResponse) {
     controller.reportFrontObstacleState(false);
     clearDeviceCalls();
@@ -370,6 +417,33 @@ TEST_F(RVCSWControllerTest, UC006KeepsIncreasedPowerWhenObstacleDetectedDuringDu
 
     EXPECT_EQ(cleaner.calls, std::vector<std::string>{"keepIncreased"});
     EXPECT_EQ(drive.calls, std::vector<std::string>{"stop"});
+}
+
+TEST_F(RVCSWControllerTest, UC006CombinedSnapshotKeepsIncreasedPowerWhenObstacleDetectedDuringDustResponse) {
+    controller.reportFrontObstacleState(false);
+    clearDeviceCalls();
+
+    controller.reportDustDetected();
+    clearDeviceCalls();
+
+    controller.reportObstacleState(true, rvc::BackObstacleInput::Unknown, false);
+
+    EXPECT_EQ(cleaner.calls, std::vector<std::string>{"keepIncreased"});
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"stop"});
+}
+
+TEST_F(RVCSWControllerTest, UC006CombinedSnapshotKeepsIncreasedPowerWhileContinuingForwardCleaning) {
+    controller.reportFrontObstacleState(false);
+    clearDeviceCalls();
+
+    controller.reportDustDetected();
+    clearDeviceCalls();
+
+    controller.reportObstacleState(false, rvc::BackObstacleInput::Clear, false);
+
+    EXPECT_EQ(cleaner.calls, std::vector<std::string>{"keepIncreased"});
+    EXPECT_EQ(drive.calls, std::vector<std::string>{"moveForward"});
+    EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::Cleaning);
 }
 
 TEST_F(RVCSWControllerTest, UC006KeepsIncreasedPowerWhenRightProbeOpenResumesCleaning) {
@@ -468,6 +542,42 @@ TEST_F(RVCSWControllerTest, UC007TimeoutRestoresPowerWithoutChangingAvoidanceSta
     EXPECT_EQ(cleaner.calls, std::vector<std::string>{"setNormal"});
     EXPECT_TRUE(drive.calls.empty());
     EXPECT_EQ(controller.movementStatus(), rvc::MovementStatus::AvoidingObstacle);
+}
+
+TEST(AutomaticCleaningTest, RightDirectionProbeTracksBlockedAndClearStates) {
+    rvc::RightDirectionProbe probe;
+
+    probe.start();
+    EXPECT_TRUE(probe.isActive());
+    EXPECT_EQ(probe.result(), rvc::RightProbeResult::Unknown);
+    EXPECT_FALSE(probe.restoreOriginalHeadingRequired());
+
+    probe.resolveWithFrontObstacle(true);
+    EXPECT_FALSE(probe.isActive());
+    EXPECT_TRUE(probe.isBlocked());
+    EXPECT_FALSE(probe.isOpen());
+    EXPECT_TRUE(probe.restoreOriginalHeadingRequired());
+    EXPECT_EQ(probe.result(), rvc::RightProbeResult::Blocked);
+
+    probe.clear();
+    EXPECT_FALSE(probe.isActive());
+    EXPECT_FALSE(probe.isBlocked());
+    EXPECT_FALSE(probe.isOpen());
+    EXPECT_FALSE(probe.restoreOriginalHeadingRequired());
+    EXPECT_EQ(probe.result(), rvc::RightProbeResult::Unknown);
+}
+
+TEST(AutomaticCleaningTest, RightDirectionProbeTracksOpenState) {
+    rvc::RightDirectionProbe probe;
+
+    probe.start();
+    probe.resolveWithFrontObstacle(false);
+
+    EXPECT_FALSE(probe.isActive());
+    EXPECT_TRUE(probe.isOpen());
+    EXPECT_FALSE(probe.isBlocked());
+    EXPECT_FALSE(probe.restoreOriginalHeadingRequired());
+    EXPECT_EQ(probe.result(), rvc::RightProbeResult::Open);
 }
 
 TEST(AutomaticCleaningTest, HandleSensorStateReturnsForwardNormalCleaningForClearPath) {
@@ -664,6 +774,17 @@ TEST(AutomaticCleaningTest, HandleObstacleWhileDustResponseStopsAndKeepsIncrease
     EXPECT_EQ(result.cleaningCommand()->powerLevel(), rvc::CleaningPowerLevel::Increased);
 }
 
+TEST(AutomaticCleaningTest, HandleObstacleWhileDustResponseWithoutActiveDustDoesNotAddCleaningPower) {
+    rvc::AutomaticCleaning cleaning;
+    rvc::SensorState obstacleState;
+    obstacleState.updateFrontObstacle(true);
+
+    const auto result = cleaning.handleObstacleWhileDustResponse(obstacleState);
+
+    EXPECT_EQ(movementTypes(result), std::vector<rvc::MovementCommandType>{rvc::MovementCommandType::Stop});
+    EXPECT_FALSE(result.cleaningCommand().has_value());
+}
+
 TEST(AutomaticCleaningTest, HandleDustResponseTimeoutExpiresActiveDustResponse) {
     rvc::SensorState dustState;
     dustState.updateDustDetected(true);
@@ -700,6 +821,33 @@ TEST(AutomaticCleaningTest, MarkDustResponsePendingMakesResponsePendingUntilClea
     cleaning.clearDustResponseState();
     EXPECT_FALSE(cleaning.isDustResponseActive());
     EXPECT_FALSE(cleaning.isDustResponsePending());
+}
+
+TEST(AutomaticCleaningTest, KeepMovementStatusDoesNotChangeCurrentStatus) {
+    rvc::AutomaticCleaning cleaning;
+
+    cleaning.changeMovementStatus(rvc::MovementStatus::Cleaning);
+    cleaning.keepMovementStatus(rvc::MovementStatus::Blocked);
+    EXPECT_EQ(cleaning.movementStatus(), rvc::MovementStatus::Cleaning);
+
+    cleaning.keepMovementStatus(rvc::MovementStatus::Cleaning);
+    EXPECT_EQ(cleaning.movementStatus(), rvc::MovementStatus::Cleaning);
+}
+
+TEST(DustResponseTest, StartAndExpireExposeCurrentState) {
+    rvc::DustResponse response;
+
+    response.start(rvc::CleaningPowerLevel::Increased, rvc::Duration::milliseconds(42));
+
+    EXPECT_TRUE(response.isActive());
+    EXPECT_EQ(response.currentPowerLevel(), rvc::CleaningPowerLevel::Increased);
+    EXPECT_EQ(response.duration().inMilliseconds(), 42);
+
+    response.expire();
+
+    EXPECT_FALSE(response.isActive());
+    EXPECT_EQ(response.currentPowerLevel(), rvc::CleaningPowerLevel::Normal);
+    EXPECT_TRUE(response.duration().isZero());
 }
 
 TEST(SensorStateTest, FrontLeftSnapshotKeepsBackStateUnknown) {

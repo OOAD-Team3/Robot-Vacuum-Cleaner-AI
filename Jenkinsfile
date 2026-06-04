@@ -368,7 +368,7 @@ pipeline {
                       --sonarqube ${COVERAGE_XML} \
                       --exclude "${BUILD_DIR}/.*" \
                       --exclude '.*/_deps/.*' \
-                      --exclude 'app/rvc_app/main\.cpp' \
+                      --exclude 'app/rvc_app/main[.]cpp' \
                       --exclude 'src/net/.*' \
                       --exclude 'src/protocol/.*' \
                       --exclude 'src/sim/.*'
@@ -377,7 +377,7 @@ pipeline {
                       --html-details ${COVERAGE_HTML} \
                       --exclude "${BUILD_DIR}/.*" \
                       --exclude '.*/_deps/.*' \
-                      --exclude 'app/rvc_app/main\.cpp' \
+                      --exclude 'app/rvc_app/main[.]cpp' \
                       --exclude 'src/net/.*' \
                       --exclude 'src/protocol/.*' \
                       --exclude 'src/sim/.*'

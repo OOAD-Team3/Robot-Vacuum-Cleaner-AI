@@ -19,8 +19,8 @@ actor "주행 장치" as Drive
 
 Sensor -> Controller: reportSensorSnapshot(dustDetected=false, currentDirection=FORWARD, frontObstacleDetected=true)
 activate Controller
-Controller -> SensorState: updateSnapshot(frontObstacleDetected=true, backObstacleDetected, dustDetected=false)
-Controller -> Cleaning: startObstacleResponse(SensorState)
+Controller -> SensorState: updateSensorSnapshot(frontObstacleDetected=true, backObstacleDetected, dustDetected=false)
+Controller -> Cleaning: handleSensorState(SensorState)
 activate Cleaning
 Cleaning -> SensorState: currentDirection()
 SensorState --> Cleaning: FORWARD
@@ -38,7 +38,7 @@ Controller -> Drive: turnClockwise90()
 
 Sensor -> Controller: reportBackObstacleState(backObstacleDetected=false)
 Controller -> SensorState: updateBackObstacle(false)
-Controller -> Cleaning: completeRotationIfTargetClear(SensorState)
+Controller -> Cleaning: handleSensorState(SensorState)
 activate Cleaning
 Cleaning -> SensorState: obstacleDetectedIn(BACKWARD)
 SensorState --> Cleaning: false

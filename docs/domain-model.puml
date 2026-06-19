@@ -17,14 +17,7 @@ class "Sensor State" as SensorState {
 
 class "Cleaning Policy" as CleaningPolicy {
   normalPowerLevel
-  boostPowerLevel
-  rotationStepDegrees
-  initialTravelDirection
-}
-
-class "Cleaning Decision" as CleaningDecision {
-  decisionType
-  travelDirection
+  increasedPowerLevel
 }
 
 class "Rotation Context" as RotationContext {
@@ -68,13 +61,6 @@ enum "Target Sensor" as TargetSensor {
   BACK
 }
 
-enum "Cleaning Decision Type" as CleaningDecisionType {
-  NORMAL_CLEANING
-  DUST_RESPONSE
-  OBSTACLE_RESPONSE
-  ROTATION_RECHECK
-}
-
 enum "Movement Command Type" as MovementCommandType {
   MOVE_FORWARD
   MOVE_BACKWARD
@@ -90,19 +76,14 @@ enum "Cleaning Power Level" as CleaningPowerLevel {
 AutomaticCleaning "1" --> "1" SensorState : reads
 AutomaticCleaning "1" --> "1" CleaningPolicy : uses
 AutomaticCleaning "1" --> "0..1" RotationContext : owns
-AutomaticCleaning "1" --> "0..1" CleaningDecision : creates
 AutomaticCleaning "1" --> "0..*" MovementCommand : issues
 AutomaticCleaning "1" --> "0..*" CleaningCommand : issues
 AutomaticCleaning "1" --> "1" MovementStatus : has
 AutomaticCleaning "1" --> "1" TravelDirection : has
 
-SensorState "1" --> "0..1" CleaningDecision : triggers
+SensorState "1" --> "0..1" RotationContext : triggers
 
 CleaningPolicy "1" --> "1" CleaningPowerLevel : defines
-CleaningPolicy "1" --> "1" TravelDirection : defines initial direction
-
-CleaningDecision "1" --> "1" CleaningDecisionType : has
-CleaningDecision "1" --> "1" TravelDirection : targets
 
 RotationContext "1" --> "1" RotationCause : caused by
 RotationContext "1" --> "1" RotationDirection : rotates

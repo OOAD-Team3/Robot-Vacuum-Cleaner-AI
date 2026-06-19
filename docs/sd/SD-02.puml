@@ -10,37 +10,37 @@ actor "센서 입력" as Sensor
 participant "RVC SW Controller" as Controller
 participant "SensorState" as SensorState
 participant "AutomaticCleaning" as Cleaning
-participant "CleaningDecision" as Decision
+participant "CommandResult" as CommandResult
 
 Sensor -> Controller: reportSensorSnapshot(dustDetected, frontObstacleDetected, backObstacleDetected)
 activate Controller
-Controller -> SensorState: updateSnapshot(frontObstacleDetected, backObstacleDetected, dustDetected)
-Controller -> Cleaning: decideNextAction(SensorState)
+Controller -> SensorState: updateSensorSnapshot(frontObstacleDetected, backObstacleDetected, dustDetected)
+Controller -> Cleaning: handleSensorState(SensorState)
 activate Cleaning
 
 Cleaning -> SensorState: isDustDetected()
 alt dustDetected = true
     SensorState --> Cleaning: true
-    Cleaning -> Decision: dustResponse(currentDirection)
-    Decision --> Cleaning: DUST_RESPONSE
+    Cleaning -> CommandResult: withCleaning(BOOST)\nwithMovement(turn command)
+    CommandResult --> Cleaning: dust rotation result
     note right of Cleaning: 장애물 감지 여부와 관계없이 UC-003 또는 UC-004 선택
 else dustDetected = false
     SensorState --> Cleaning: false
     Cleaning -> SensorState: obstacleDetectedIn(currentDirection)
     alt currentDirectionObstacle = true
         SensorState --> Cleaning: true
-        Cleaning -> Decision: obstacleResponse(currentDirection)
-        Decision --> Cleaning: OBSTACLE_RESPONSE
+        Cleaning -> CommandResult: withCleaning(NORMAL)\nwithMovement(turn command)
+        CommandResult --> Cleaning: obstacle rotation result
         note right of Cleaning: UC-005 또는 UC-006 선택
     else currentDirectionObstacle = false
         SensorState --> Cleaning: false
-        Cleaning -> Decision: normalCleaning(currentDirection)
-        Decision --> Cleaning: NORMAL_CLEANING
+        Cleaning -> CommandResult: withCleaning(NORMAL)\nwithMovement(travel command)
+        CommandResult --> Cleaning: normal cleaning result
         note right of Cleaning: UC-001 유지
     end
 end
 
-Cleaning --> Controller: decision
+Cleaning --> Controller: commandResult
 deactivate Cleaning
 deactivate Controller
 @enduml

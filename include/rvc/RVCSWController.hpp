@@ -25,18 +25,20 @@ public:
         bool frontObstacleDetected,
         BackObstacleInput backObstacleDetected,
         bool leftObstacleDetected) override;
+    void reportSensorSnapshot(
+        bool frontObstacleDetected,
+        BackObstacleInput backObstacleDetected,
+        bool dustDetected) override;
     void reportDustDetected() override;
     void increasedPowerDurationExpired();
 
     MovementStatus movementStatus() const;
+    TravelDirection travelDirection() const;
+    bool isRotationActive() const;
 
 private:
+    void evaluateCurrentState();
     void apply(CommandResult result);
-    void applyInitialDustResponse(CommandResult result);
-    void applyPendingDustResponseIfCleaning();
-    bool applyRightProbeResultIfNeeded();
-    bool applyAvoidanceDecisionFromCurrentState();
-    void applyAvoidanceDecision(const AvoidanceDecision& decision);
     void executeMovementCommand(const MovementCommand& command);
     void executeCleaningCommand(const CleaningCommand& command);
     void startTimerIfNeeded(const std::optional<Duration>& duration);

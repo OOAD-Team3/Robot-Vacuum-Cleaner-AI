@@ -29,7 +29,6 @@ add_library(rvc_controller
     src/AutomaticCleaning.cpp
     src/CleaningPolicy.cpp
     src/Commands.cpp
-    src/DustResponse.cpp
     src/RVCSWController.cpp
     src/SensorState.cpp
 )

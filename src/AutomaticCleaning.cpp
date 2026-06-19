@@ -2,230 +2,116 @@
 
 namespace rvc {
 
-void RightDirectionProbe::start() {
-    active_ = true;
-    result_ = RightProbeResult::Unknown;
-    restoreOriginalHeadingRequired_ = false;
-}
-
-void RightDirectionProbe::resolveWithFrontObstacle(bool frontObstacleDetected) {
-    active_ = false;
-    result_ = frontObstacleDetected ? RightProbeResult::Blocked : RightProbeResult::Open;
-    restoreOriginalHeadingRequired_ = frontObstacleDetected;
-}
-
-void RightDirectionProbe::clear() {
-    active_ = false;
-    result_ = RightProbeResult::Unknown;
-    restoreOriginalHeadingRequired_ = false;
-}
-
-bool RightDirectionProbe::isActive() const {
-    return active_;
-}
-
-bool RightDirectionProbe::isOpen() const {
-    return result_ == RightProbeResult::Open;
-}
-
-bool RightDirectionProbe::isBlocked() const {
-    return result_ == RightProbeResult::Blocked;
-}
-
-bool RightDirectionProbe::restoreOriginalHeadingRequired() const {
-    return restoreOriginalHeadingRequired_;
-}
-
-RightProbeResult RightDirectionProbe::result() const {
-    return result_;
-}
-
 AutomaticCleaning::AutomaticCleaning(CleaningPolicy policy) : policy_(policy) {}
 
 CommandResult AutomaticCleaning::handleSensorState(const SensorState& sensorState) {
-    if (sensorState.isFrontObstacleDetected()) {
-        movementStatus_ = MovementStatus::AvoidingObstacle;
-        return CommandResult::none().withMovement(MovementCommand::create(MovementCommandType::Stop));
+    if (rotationContext_ && rotationContext_->cause == RotationCause::Dust) {
+        return continueRotation(sensorState);
+    }
+
+    if (sensorState.isDustDetected()) {
+        return startRotation(RotationCause::Dust);
+    }
+
+    if (rotationContext_) {
+        return continueRotation(sensorState);
+    }
+
+    if (sensorState.obstacleDetectedIn(travelDirection_)) {
+        return startRotation(RotationCause::Obstacle);
     }
 
     return normalCleaningResult();
 }
 
-AvoidanceDecision AutomaticCleaning::selectAvoidanceDirection(const SensorState& sensorState) {
-    auto decision = AvoidanceDecision::prepareDirectionDecision();
-
-    if (rightDirectionProbe_.isActive()) {
-        rightDirectionProbe_.resolveWithFrontObstacle(sensorState.isFrontObstacleDetected());
-
-        if (rightDirectionProbe_.isOpen()) {
-            decision.select(AvoidanceDirection::Right);
-            clearThreeSideBlock();
-            movementStatus_ = MovementStatus::AvoidingObstacle;
-            return decision;
-        }
-
-        threeSideBlockedConfirmed_ = true;
-        threeSideStopIssued_ = false;
-        decision.markBackwardRequired();
-        movementStatus_ = MovementStatus::Blocked;
-        return decision;
-    }
-
-    if (!sensorState.isLeftObstacleDetected()) {
-        decision.select(AvoidanceDirection::Left);
-        clearThreeSideBlock();
-        movementStatus_ = MovementStatus::AvoidingObstacle;
-        return decision;
-    }
-
-    clearThreeSideBlock();
-    rightDirectionProbe_.start();
-    decision.markRightProbeRequired();
-    movementStatus_ = MovementStatus::AvoidingObstacle;
-    return decision;
-}
-
-CommandResult AutomaticCleaning::resumeAfterTurn(const SensorState& sensorState) {
-    if (sensorState.isFrontObstacleDetected()) {
-        movementStatus_ = MovementStatus::AvoidingObstacle;
-        return CommandResult::none().withMovement(MovementCommand::create(MovementCommandType::Stop));
-    }
-
-    movementStatus_ = MovementStatus::Cleaning;
-    auto result = CommandResult::none().withMovement(MovementCommand::create(MovementCommandType::MoveForward));
-    return maintainCurrentCleaningPower(result);
-}
-
-CommandResult AutomaticCleaning::handleThreeSideObstacle(const SensorState& sensorState) {
-    if (!threeSideBlockedConfirmed_) {
-        return CommandResult::none();
-    }
-
-    if (!sensorState.isBackObstacleStateKnown()) {
-        movementStatus_ = MovementStatus::Blocked;
-        threeSideStopIssued_ = true;
-        return CommandResult::none().withMovement(MovementCommand::create(MovementCommandType::Stop));
-    }
-
-    if (!sensorState.canMoveBackward()) {
-        movementStatus_ = MovementStatus::Stopped;
-        threeSideStopIssued_ = true;
-        return CommandResult::none().withMovement(MovementCommand::create(MovementCommandType::Stop));
-    }
-
-    movementStatus_ = MovementStatus::Blocked;
-
-    auto result = CommandResult::none();
-    if (!threeSideStopIssued_) {
-        result.withMovement(MovementCommand::create(MovementCommandType::Stop));
-        threeSideStopIssued_ = true;
-    }
-
-    result.withMovement(MovementCommand::create(MovementCommandType::MoveBackward));
-    clearThreeSideBlock();
-    return result;
-}
-
-CommandResult AutomaticCleaning::handleDustDetected(const SensorState& sensorState) {
-    if (!sensorState.isDustDetected()) {
-        return CommandResult::none();
-    }
-
-    const auto powerLevel = policy_.increasedPowerLevel();
-    const auto duration = policy_.increasedPowerDuration();
-    dustResponse_.start(powerLevel, duration);
-    dustResponsePending_ = false;
-
-    return CommandResult::none()
-        .withCleaning(CleaningCommand::create(powerLevel))
-        .withTimer(duration);
-}
-
-CommandResult AutomaticCleaning::handleObstacleWhileDustResponse(const SensorState& sensorState) {
-    auto result = threeSideBlockedConfirmed_
-        ? handleThreeSideObstacle(sensorState)
-        : handleSensorState(sensorState);
-
-    if (dustResponse_.isActive()) {
-        result.withCleaning(CleaningCommand::create(dustResponse_.currentPowerLevel()));
-    }
-
-    return result;
-}
-
 CommandResult AutomaticCleaning::handleDustResponseTimeout() {
-    if (!dustResponse_.isActive()) {
-        return CommandResult::none();
-    }
-
-    dustResponse_.expire();
-    dustResponsePending_ = false;
-    return CommandResult::none().withCleaning(CleaningCommand::create(policy_.normalPowerLevel()));
-}
-
-void AutomaticCleaning::markDustResponsePending() {
-    dustResponsePending_ = true;
-}
-
-void AutomaticCleaning::clearDustResponseState() {
-    dustResponse_.expire();
-    dustResponsePending_ = false;
-}
-
-void AutomaticCleaning::keepCurrentMovementStatus() {}
-
-void AutomaticCleaning::changeMovementStatus(MovementStatus status) {
-    movementStatus_ = status;
-}
-
-void AutomaticCleaning::keepMovementStatus(MovementStatus status) {
-    if (movementStatus_ != status) {
-        return;
-    }
+    return CommandResult::none();
 }
 
 MovementStatus AutomaticCleaning::movementStatus() const {
     return movementStatus_;
 }
 
-bool AutomaticCleaning::isDustResponseActive() const {
-    return dustResponse_.isActive();
+TravelDirection AutomaticCleaning::travelDirection() const {
+    return travelDirection_;
 }
 
-bool AutomaticCleaning::isDustResponsePending() const {
-    return dustResponsePending_;
+bool AutomaticCleaning::isRotationActive() const {
+    return rotationContext_.has_value();
 }
 
-bool AutomaticCleaning::isRightProbeActive() const {
-    return rightDirectionProbe_.isActive();
+CommandResult AutomaticCleaning::startRotation(RotationCause cause) {
+    rotationContext_ = createRotationContext(cause);
+    movementStatus_ = MovementStatus::Rotating;
+
+    return CommandResult::none()
+        .withCleaning(CleaningCommand::create(rotationPowerLevel(cause)))
+        .withMovement(turnCommand(rotationContext_->rotationDirection));
+}
+
+CommandResult AutomaticCleaning::continueRotation(const SensorState& sensorState) {
+    if (!rotationContext_) {
+        return normalCleaningResult();
+    }
+
+    if (!sensorState.targetSensorIsClear(rotationContext_->targetSensor)) {
+        movementStatus_ = MovementStatus::Rotating;
+        return CommandResult::none()
+            .withCleaning(CleaningCommand::create(rotationPowerLevel(rotationContext_->cause)))
+            .withMovement(turnCommand(rotationContext_->rotationDirection));
+    }
+
+    travelDirection_ = rotationContext_->nextTravelDirection;
+    rotationContext_.reset();
+    movementStatus_ = MovementStatus::Cleaning;
+
+    return CommandResult::none()
+        .withCleaning(CleaningCommand::create(policy_.normalPowerLevel()))
+        .withMovement(travelCommand(travelDirection_));
 }
 
 CommandResult AutomaticCleaning::normalCleaningResult() {
     movementStatus_ = MovementStatus::Cleaning;
-    clearThreeSideBlock();
 
-    auto result = CommandResult::none()
-        .withMovement(MovementCommand::create(MovementCommandType::MoveForward));
-
-    return maintainCurrentCleaningPower(result);
+    return CommandResult::none()
+        .withCleaning(CleaningCommand::create(policy_.normalPowerLevel()))
+        .withMovement(travelCommand(travelDirection_));
 }
 
-CommandResult AutomaticCleaning::maintainCurrentCleaningPower(CommandResult result) {
-    if (dustResponse_.isActive()) {
-        result.withCleaning(CleaningCommand::create(dustResponse_.currentPowerLevel()));
-        return result;
-    }
-
-    result.withCleaning(CleaningCommand::create(policy_.normalPowerLevel()));
-    return result;
+MovementCommand AutomaticCleaning::turnCommand(RotationDirection direction) const {
+    return MovementCommand::create(
+        direction == RotationDirection::Clockwise
+            ? MovementCommandType::TurnClockwise90
+            : MovementCommandType::TurnCounterClockwise90);
 }
 
-void AutomaticCleaning::clearThreeSideBlock() {
-    threeSideBlockedConfirmed_ = false;
-    threeSideStopIssued_ = false;
-    if (!rightDirectionProbe_.isActive()) {
-        rightDirectionProbe_.clear();
+MovementCommand AutomaticCleaning::travelCommand(TravelDirection direction) const {
+    return MovementCommand::create(
+        direction == TravelDirection::Forward
+            ? MovementCommandType::MoveForward
+            : MovementCommandType::MoveBackward);
+}
+
+CleaningPowerLevel AutomaticCleaning::rotationPowerLevel(RotationCause cause) const {
+    return cause == RotationCause::Dust
+        ? policy_.increasedPowerLevel()
+        : policy_.normalPowerLevel();
+}
+
+AutomaticCleaning::RotationContext AutomaticCleaning::createRotationContext(RotationCause cause) const {
+    if (travelDirection_ == TravelDirection::Forward) {
+        return RotationContext{
+            cause,
+            RotationDirection::Clockwise,
+            TargetSensor::Back,
+            TravelDirection::Backward};
     }
+
+    return RotationContext{
+        cause,
+        RotationDirection::CounterClockwise,
+        TargetSensor::Front,
+        TravelDirection::Forward};
 }
 
 } // namespace rvc

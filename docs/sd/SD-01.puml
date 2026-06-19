@@ -19,7 +19,7 @@ actor "주행 장치" as Drive
 
 Sensor -> Controller: reportSensorSnapshot(dustDetected=false, currentDirectionObstacle=false)
 activate Controller
-Controller -> SensorState: updateSnapshot(frontObstacleDetected, backObstacleDetected, dustDetected=false)
+Controller -> SensorState: updateSensorSnapshot(frontObstacleDetected, backObstacleDetected, dustDetected=false)
 Controller -> Cleaning: handleSensorSnapshot(SensorState)
 activate Cleaning
 Cleaning -> SensorState: isDustDetected()

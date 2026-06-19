@@ -15,6 +15,10 @@ public:
         bool frontObstacleDetected,
         BackObstacleInput backObstacleDetected,
         bool leftObstacleDetected) = 0;
+    virtual void reportSensorSnapshot(
+        bool frontObstacleDetected,
+        BackObstacleInput backObstacleDetected,
+        bool dustDetected) = 0;
     virtual void reportDustDetected() = 0;
 };
 

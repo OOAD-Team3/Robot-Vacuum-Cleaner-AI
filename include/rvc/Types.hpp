@@ -4,6 +4,7 @@ namespace rvc {
 
 enum class MovementStatus {
     Cleaning,
+    Rotating,
     AvoidingObstacle,
     Blocked,
     Stopped
@@ -12,6 +13,8 @@ enum class MovementStatus {
 enum class MovementCommandType {
     MoveForward,
     MoveBackward,
+    TurnClockwise90,
+    TurnCounterClockwise90,
     TurnLeft,
     TurnRight,
     Stop
@@ -37,6 +40,26 @@ enum class BackObstacleInput {
     Clear,
     Blocked,
     Unknown
+};
+
+enum class TravelDirection {
+    Forward,
+    Backward
+};
+
+enum class RotationDirection {
+    Clockwise,
+    CounterClockwise
+};
+
+enum class RotationCause {
+    Dust,
+    Obstacle
+};
+
+enum class TargetSensor {
+    Front,
+    Back
 };
 
 class Duration {

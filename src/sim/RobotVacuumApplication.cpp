@@ -43,6 +43,17 @@ void RobotVacuumApplication::setObstacleState(
     controller_->reportObstacleState(frontDetected, backDetected, leftDetected);
 }
 
+void RobotVacuumApplication::setSensorSnapshot(
+    bool frontDetected,
+    rvc::BackObstacleInput backDetected,
+    bool dustDetected) {
+    frontObstacleDetected_ = frontDetected;
+    backObstacleDetected_ = toOptionalBackState(backDetected);
+    dustDetected_ = dustDetected;
+
+    controller_->reportSensorSnapshot(frontDetected, backDetected, dustDetected);
+}
+
 void RobotVacuumApplication::reportDustDetected() {
     dustDetected_ = true;
     controller_->reportDustDetected();
@@ -62,6 +73,8 @@ bool RobotVacuumApplication::expirePowerTimer() {
 ControllerStateSnapshot RobotVacuumApplication::snapshot() const {
     return ControllerStateSnapshot{
         controller_->movementStatus(),
+        controller_->travelDirection(),
+        controller_->isRotationActive(),
         frontObstacleDetected_,
         backObstacleDetected_,
         leftObstacleDetected_,

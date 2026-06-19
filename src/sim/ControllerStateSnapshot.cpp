@@ -4,6 +4,8 @@ namespace rvc::sim {
 
 ControllerStateSnapshot::ControllerStateSnapshot(
     MovementStatus movementStatus,
+    TravelDirection travelDirection,
+    bool rotationActive,
     bool frontObstacleDetected,
     std::optional<bool> backObstacleDetected,
     bool leftObstacleDetected,
@@ -12,6 +14,8 @@ ControllerStateSnapshot::ControllerStateSnapshot(
     CleaningPowerState cleaningPower,
     bool timerActive)
     : movementStatus_(movementStatus),
+      travelDirection_(travelDirection),
+      rotationActive_(rotationActive),
       frontObstacleDetected_(frontObstacleDetected),
       backObstacleDetected_(backObstacleDetected),
       leftObstacleDetected_(leftObstacleDetected),
@@ -22,6 +26,14 @@ ControllerStateSnapshot::ControllerStateSnapshot(
 
 MovementStatus ControllerStateSnapshot::movementStatus() const {
     return movementStatus_;
+}
+
+TravelDirection ControllerStateSnapshot::travelDirection() const {
+    return travelDirection_;
+}
+
+bool ControllerStateSnapshot::rotationActive() const {
+    return rotationActive_;
 }
 
 bool ControllerStateSnapshot::frontObstacleDetected() const {

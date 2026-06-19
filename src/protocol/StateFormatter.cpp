@@ -10,10 +10,12 @@ const char* toText(MovementStatus status) {
     switch (status) {
     case MovementStatus::Cleaning:
         return "CLEANING";
+    case MovementStatus::Rotating:
+        return "ROTATING";
     case MovementStatus::AvoidingObstacle:
-        return "AVOIDING_OBSTACLE";
+        return "ROTATING";
     case MovementStatus::Blocked:
-        return "BLOCKED";
+        return "ROTATING";
     case MovementStatus::Stopped:
         return "STOPPED";
     }
@@ -29,10 +31,14 @@ const char* toText(sim::DriveCommand command) {
         return "MOVE_FORWARD";
     case sim::DriveCommand::MoveBackward:
         return "MOVE_BACKWARD";
+    case sim::DriveCommand::TurnClockwise90:
+        return "TURN_CLOCKWISE_90";
+    case sim::DriveCommand::TurnCounterClockwise90:
+        return "TURN_COUNTER_CLOCKWISE_90";
     case sim::DriveCommand::TurnLeft:
-        return "TURN_LEFT";
+        return "TURN_COUNTER_CLOCKWISE_90";
     case sim::DriveCommand::TurnRight:
-        return "TURN_RIGHT";
+        return "TURN_CLOCKWISE_90";
     case sim::DriveCommand::Stop:
         return "STOP";
     }
@@ -47,10 +53,21 @@ const char* toText(sim::CleaningPowerState state) {
     case sim::CleaningPowerState::Normal:
         return "NORMAL";
     case sim::CleaningPowerState::Increased:
-        return "INCREASED";
+        return "BOOST";
     }
 
     return "OFF";
+}
+
+const char* toText(TravelDirection direction) {
+    switch (direction) {
+    case TravelDirection::Forward:
+        return "FORWARD";
+    case TravelDirection::Backward:
+        return "BACKWARD";
+    }
+
+    return "FORWARD";
 }
 
 const char* toBit(bool value) {
@@ -72,13 +89,13 @@ std::string StateFormatter::format(const sim::ControllerStateSnapshot& snapshot)
     response
         << "OK STATE"
         << " MOVEMENT=" << toText(snapshot.movementStatus())
+        << " DIRECTION=" << toText(snapshot.travelDirection())
+        << " ROTATION_ACTIVE=" << toBit(snapshot.rotationActive())
         << " FRONT=" << toBit(snapshot.frontObstacleDetected())
         << " BACK=" << toBackText(snapshot.backObstacleDetected())
-        << " LEFT=" << toBit(snapshot.leftObstacleDetected())
         << " DUST=" << toBit(snapshot.dustDetected())
         << " DRIVE=" << toText(snapshot.driveCommand())
-        << " CLEANING_POWER=" << toText(snapshot.cleaningPower())
-        << " TIMER_ACTIVE=" << toBit(snapshot.timerActive());
+        << " CLEANING_POWER=" << toText(snapshot.cleaningPower());
 
     return response.str();
 }

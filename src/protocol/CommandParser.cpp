@@ -135,6 +135,17 @@ ParsedCommand ParsedCommand::obstacles(
     return command;
 }
 
+ParsedCommand ParsedCommand::sensorSnapshot(
+    bool frontDetected,
+    BackObstacleValue backDetected,
+    bool dustDetected) {
+    ParsedCommand command{CommandType::SetSensorSnapshot};
+    command.frontObstacleDetected_ = frontDetected;
+    command.backObstacleDetected_ = backDetected;
+    command.dustDetected_ = dustDetected;
+    return command;
+}
+
 CommandType ParsedCommand::type() const {
     return type_;
 }
@@ -149,6 +160,10 @@ BackObstacleValue ParsedCommand::backObstacleDetected() const {
 
 bool ParsedCommand::leftObstacleDetected() const {
     return leftObstacleDetected_;
+}
+
+bool ParsedCommand::dustDetected() const {
+    return dustDetected_;
 }
 
 ParsedCommand::ParsedCommand(CommandType type) : type_(type) {}
@@ -270,6 +285,26 @@ ParseResult CommandParser::parse(const std::string& line) const {
         const auto left = parseBool(values["LEFT"]);
         return front && back && left
             ? ParseResult::success(ParsedCommand::obstacles(*front, *back, *left))
+            : ParseResult::failure(ParseError::InvalidArgument);
+    }
+
+    if (commandName == "SET_SENSOR_SNAPSHOT") {
+        if (words.size() != 4) {
+            return ParseResult::failure(ParseError::InvalidArgument);
+        }
+
+        std::map<std::string, std::string> values;
+        if (!collectKeyValues(words, 1, values) || values.size() != 3 ||
+            values.find("FRONT") == values.end() || values.find("BACK") == values.end() ||
+            values.find("DUST") == values.end()) {
+            return ParseResult::failure(ParseError::InvalidArgument);
+        }
+
+        const auto front = parseBool(values["FRONT"]);
+        const auto back = parseBackValue(values["BACK"]);
+        const auto dust = parseBool(values["DUST"]);
+        return front && back && dust
+            ? ParseResult::success(ParsedCommand::sensorSnapshot(*front, *back, *dust))
             : ParseResult::failure(ParseError::InvalidArgument);
     }
 

@@ -5,7 +5,7 @@ namespace rvc::sim {
 namespace {
 
 CleaningPowerState toCleaningPowerState(CleaningPowerLevel powerLevel) {
-    return powerLevel == CleaningPowerLevel::Increased ? CleaningPowerState::Increased : CleaningPowerState::Normal;
+    return powerLevel == CleaningPowerLevel::Increased ? CleaningPowerState::Boost : CleaningPowerState::Normal;
 }
 
 } // namespace
@@ -19,15 +19,17 @@ void RecordingDrivingDevice::moveBackward() {
 }
 
 void RecordingDrivingDevice::turnLeft() {
-    lastCommand_ = DriveCommand::TurnLeft;
+    lastCommand_ = DriveCommand::TurnCounterClockwise90;
 }
 
 void RecordingDrivingDevice::turnRight() {
-    lastCommand_ = DriveCommand::TurnRight;
+    lastCommand_ = DriveCommand::TurnClockwise90;
 }
 
 void RecordingDrivingDevice::turn(AvoidanceDirection direction) {
-    lastCommand_ = direction == AvoidanceDirection::Left ? DriveCommand::TurnLeft : DriveCommand::TurnRight;
+    lastCommand_ = direction == AvoidanceDirection::Left
+        ? DriveCommand::TurnCounterClockwise90
+        : DriveCommand::TurnClockwise90;
 }
 
 void RecordingDrivingDevice::stop() {

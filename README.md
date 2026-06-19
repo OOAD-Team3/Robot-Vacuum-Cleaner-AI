@@ -24,7 +24,6 @@ Robot Vacuum Cleaner(RVC) SW Controller의 요구사항과 설계 문서, 코드
 │       ├── CleaningPolicy.hpp
 │       ├── Commands.hpp
 │       ├── Devices.hpp
-│       ├── DustResponse.hpp
 │       ├── RVCSWController.hpp
 │       ├── SensorState.hpp
 │       └── Types.hpp
@@ -32,7 +31,6 @@ Robot Vacuum Cleaner(RVC) SW Controller의 요구사항과 설계 문서, 코드
 │   ├── AutomaticCleaning.cpp
 │   ├── CleaningPolicy.cpp
 │   ├── Commands.cpp
-│   ├── DustResponse.cpp
 │   ├── RVCSWController.cpp
 │   ├── SensorState.cpp
 │   ├── net
@@ -110,11 +108,12 @@ Robot Vacuum Cleaner(RVC) SW Controller의 요구사항과 설계 문서, 코드
 
 The OOI implementation provides the RVC SW Controller as a C++17 library target named `rvc_controller`.
 
-- `RVCSWController` receives sensor and time events, updates `SensorState`, and executes device calls.
-- `AutomaticCleaning` owns the automatic cleaning, obstacle avoidance, and dust response decisions.
+- `RVCSWController` receives sensor snapshots or compatibility sensor events, updates `SensorState`, and executes device calls.
+- `AutomaticCleaning` owns the dust-first bidirectional cleaning policy, travel direction, and active 90-degree rotation context.
 - `DrivingDevice`, `CleaningDevice`, and `Time` are abstract interfaces for hardware/time dependencies.
 - `CommandResult`, `MovementCommand`, and `CleaningCommand` carry decisions from domain logic to the controller.
-- UC-005 uses `backObstacleDetected` to distinguish backward-available and backward-unavailable flows.
+- Forward dust/obstacle responses rotate clockwise and target the back sensor; backward responses rotate counter-clockwise and target the front sensor.
+- Boost cleaning power is used only during dust-driven rotation; obstacle-driven rotation and normal travel use Normal mode.
 - `rvc_app` adds a line-based TCP command server around the existing controller for simulator and system test clients.
 - The TCP server uses standalone Asio through CMake `FetchContent`; the first configure needs network access unless the dependency has already been populated.
 
@@ -185,7 +184,7 @@ The simulator is a Python TCP client. In map mode, Python owns the room grid, du
 
 Map mode enables a Python-side coverage assist by default so the robot does not only follow the outer wall or orbit a local obstacle while reachable uncleaned cells remain elsewhere. The assist is implemented by sensor calculation only; the C++ command protocol and domain model are unchanged.
 
-Dust handling is controller-driven: when dust is reported in a sensor snapshot, C++ decides whether to enter Boost mode, rotate in 90-degree steps, and return to Normal mode after the target direction sensor is clear.
+Dust handling is controller-driven: when dust is reported in a sensor snapshot, C++ enters Boost mode, rotates in 90-degree steps, and returns to Normal mode after the target direction sensor is clear.
 
 When every floor cell reachable from the initial robot position has been cleaned, the simulator stops play mode automatically.
 

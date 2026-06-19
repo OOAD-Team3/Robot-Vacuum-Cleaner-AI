@@ -53,6 +53,12 @@ CommandResponse CommandHandler::handleParsedCommand(const ParsedCommand& command
             toApplicationBackValue(command.backObstacleDetected()),
             command.leftObstacleDetected());
         return response("OK SET_OBSTACLES");
+    case CommandType::SetSensorSnapshot:
+        application_.setSensorSnapshot(
+            command.frontObstacleDetected(),
+            toApplicationBackValue(command.backObstacleDetected()),
+            command.dustDetected());
+        return response("OK SET_SENSOR_SNAPSHOT");
     case CommandType::DustDetected:
         application_.reportDustDetected();
         return response("OK DUST_DETECTED");

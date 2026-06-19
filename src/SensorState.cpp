@@ -29,6 +29,19 @@ void SensorState::updateObstacles(
     leftObstacleDetected_ = leftObstacleDetected;
 }
 
+void SensorState::updateSensorSnapshot(
+    bool frontObstacleDetected,
+    BackObstacleInput backObstacleDetected,
+    bool dustDetected) {
+    frontObstacleDetected_ = frontObstacleDetected;
+    if (backObstacleDetected == BackObstacleInput::Unknown) {
+        backObstacleDetected_.reset();
+    } else {
+        backObstacleDetected_ = backObstacleDetected == BackObstacleInput::Blocked;
+    }
+    dustDetected_ = dustDetected;
+}
+
 void SensorState::clearBackObstacleState() {
     backObstacleDetected_.reset();
 }
@@ -55,6 +68,20 @@ bool SensorState::isLeftObstacleDetected() const {
 
 bool SensorState::isDustDetected() const {
     return dustDetected_;
+}
+
+bool SensorState::obstacleDetectedIn(TravelDirection direction) const {
+    return direction == TravelDirection::Forward
+        ? isFrontObstacleDetected()
+        : isBackObstacleDetected();
+}
+
+bool SensorState::targetSensorIsClear(TargetSensor targetSensor) const {
+    if (targetSensor == TargetSensor::Front) {
+        return !isFrontObstacleDetected();
+    }
+
+    return backObstacleDetected_.has_value() && !*backObstacleDetected_;
 }
 
 bool SensorState::canMoveBackward() const {

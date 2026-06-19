@@ -22,6 +22,10 @@ public:
         bool frontDetected,
         rvc::BackObstacleInput backDetected,
         bool leftDetected);
+    void setSensorSnapshot(
+        bool frontDetected,
+        rvc::BackObstacleInput backDetected,
+        bool dustDetected);
     void reportDustDetected();
     bool expirePowerTimer();
 

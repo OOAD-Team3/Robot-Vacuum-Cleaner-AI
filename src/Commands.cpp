@@ -15,7 +15,9 @@ MovementCommand MovementCommand::create(MovementCommandType commandType) {
 
 MovementCommand MovementCommand::createTurnCommand(AvoidanceDirection direction) {
     const auto commandType =
-        direction == AvoidanceDirection::Left ? MovementCommandType::TurnLeft : MovementCommandType::TurnRight;
+        direction == AvoidanceDirection::Left
+            ? MovementCommandType::TurnCounterClockwise90
+            : MovementCommandType::TurnClockwise90;
     return MovementCommand(commandType, direction);
 }
 

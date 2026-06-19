@@ -12,6 +12,7 @@ enum class CommandType {
     SetBack,
     SetLeft,
     SetObstacles,
+    SetSensorSnapshot,
     DustDetected,
     PowerTimeout,
     Quit
@@ -39,11 +40,16 @@ public:
         bool frontDetected,
         BackObstacleValue backDetected,
         bool leftDetected);
+    static ParsedCommand sensorSnapshot(
+        bool frontDetected,
+        BackObstacleValue backDetected,
+        bool dustDetected);
 
     CommandType type() const;
     bool frontObstacleDetected() const;
     BackObstacleValue backObstacleDetected() const;
     bool leftObstacleDetected() const;
+    bool dustDetected() const;
 
 private:
     explicit ParsedCommand(CommandType type);
@@ -52,6 +58,7 @@ private:
     bool frontObstacleDetected_{false};
     BackObstacleValue backObstacleDetected_{BackObstacleValue::Unknown};
     bool leftObstacleDetected_{false};
+    bool dustDetected_{false};
 };
 
 class ParseResult {

@@ -1,66 +1,45 @@
 #pragma once
 
+#include <optional>
+
 #include "rvc/CleaningPolicy.hpp"
 #include "rvc/Commands.hpp"
-#include "rvc/DustResponse.hpp"
 #include "rvc/SensorState.hpp"
 #include "rvc/Types.hpp"
 
 namespace rvc {
-
-class RightDirectionProbe {
-public:
-    void start();
-    void resolveWithFrontObstacle(bool frontObstacleDetected);
-    void clear();
-
-    bool isActive() const;
-    bool isOpen() const;
-    bool isBlocked() const;
-    bool restoreOriginalHeadingRequired() const;
-    RightProbeResult result() const;
-
-private:
-    bool active_{false};
-    RightProbeResult result_{RightProbeResult::Unknown};
-    bool restoreOriginalHeadingRequired_{false};
-};
 
 class AutomaticCleaning {
 public:
     explicit AutomaticCleaning(CleaningPolicy policy = CleaningPolicy{});
 
     CommandResult handleSensorState(const SensorState& sensorState);
-    AvoidanceDecision selectAvoidanceDirection(const SensorState& sensorState);
-    CommandResult resumeAfterTurn(const SensorState& sensorState);
-    CommandResult handleThreeSideObstacle(const SensorState& sensorState);
-    CommandResult handleDustDetected(const SensorState& sensorState);
-    CommandResult handleObstacleWhileDustResponse(const SensorState& sensorState);
     CommandResult handleDustResponseTimeout();
 
-    void markDustResponsePending();
-    void clearDustResponseState();
-    void keepCurrentMovementStatus();
-    void changeMovementStatus(MovementStatus status);
-    void keepMovementStatus(MovementStatus status);
-
     MovementStatus movementStatus() const;
-    bool isDustResponseActive() const;
-    bool isDustResponsePending() const;
-    bool isRightProbeActive() const;
+    TravelDirection travelDirection() const;
+    bool isRotationActive() const;
 
 private:
+    struct RotationContext {
+        RotationCause cause;
+        RotationDirection rotationDirection;
+        TargetSensor targetSensor;
+        TravelDirection nextTravelDirection;
+    };
+
+    CommandResult startRotation(RotationCause cause);
+    CommandResult continueRotation(const SensorState& sensorState);
     CommandResult normalCleaningResult();
-    CommandResult maintainCurrentCleaningPower(CommandResult result);
-    void clearThreeSideBlock();
+    MovementCommand turnCommand(RotationDirection direction) const;
+    MovementCommand travelCommand(TravelDirection direction) const;
+    CleaningPowerLevel rotationPowerLevel(RotationCause cause) const;
+    RotationContext createRotationContext(RotationCause cause) const;
 
     MovementStatus movementStatus_{MovementStatus::Stopped};
+    TravelDirection travelDirection_{TravelDirection::Forward};
     CleaningPolicy policy_;
-    RightDirectionProbe rightDirectionProbe_;
-    bool threeSideBlockedConfirmed_{false};
-    bool threeSideStopIssued_{false};
-    DustResponse dustResponse_;
-    bool dustResponsePending_{false};
+    std::optional<RotationContext> rotationContext_;
 };
 
 } // namespace rvc

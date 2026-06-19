@@ -2,6 +2,8 @@
 
 #include <optional>
 
+#include "rvc/Types.hpp"
+
 namespace rvc {
 
 class SensorState {
@@ -11,6 +13,10 @@ public:
     void updateLeftObstacle(bool leftObstacleDetected);
     void updateObstacles(bool frontObstacleDetected, bool leftObstacleDetected);
     void updateObstacles(bool frontObstacleDetected, bool backObstacleDetected, bool leftObstacleDetected);
+    void updateSensorSnapshot(
+        bool frontObstacleDetected,
+        BackObstacleInput backObstacleDetected,
+        bool dustDetected);
     void clearBackObstacleState();
     void updateDustDetected(bool dustDetected);
 
@@ -19,6 +25,8 @@ public:
     bool isBackObstacleStateKnown() const;
     bool isLeftObstacleDetected() const;
     bool isDustDetected() const;
+    bool obstacleDetectedIn(TravelDirection direction) const;
+    bool targetSensorIsClear(TargetSensor targetSensor) const;
     bool canMoveBackward() const;
 
 private:

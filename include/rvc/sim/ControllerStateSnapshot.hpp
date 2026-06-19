@@ -10,6 +10,8 @@ enum class DriveCommand {
     None,
     MoveForward,
     MoveBackward,
+    TurnClockwise90,
+    TurnCounterClockwise90,
     TurnLeft,
     TurnRight,
     Stop
@@ -18,13 +20,16 @@ enum class DriveCommand {
 enum class CleaningPowerState {
     Off,
     Normal,
-    Increased
+    Increased,
+    Boost = Increased
 };
 
 class ControllerStateSnapshot {
 public:
     ControllerStateSnapshot(
         MovementStatus movementStatus,
+        TravelDirection travelDirection,
+        bool rotationActive,
         bool frontObstacleDetected,
         std::optional<bool> backObstacleDetected,
         bool leftObstacleDetected,
@@ -34,6 +39,8 @@ public:
         bool timerActive);
 
     MovementStatus movementStatus() const;
+    TravelDirection travelDirection() const;
+    bool rotationActive() const;
     bool frontObstacleDetected() const;
     std::optional<bool> backObstacleDetected() const;
     bool leftObstacleDetected() const;
@@ -44,6 +51,8 @@ public:
 
 private:
     MovementStatus movementStatus_{MovementStatus::Stopped};
+    TravelDirection travelDirection_{TravelDirection::Forward};
+    bool rotationActive_{false};
     bool frontObstacleDetected_{false};
     std::optional<bool> backObstacleDetected_;
     bool leftObstacleDetected_{false};

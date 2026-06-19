@@ -20,7 +20,7 @@ actor "주행 장치" as Drive
 Sensor -> Controller: reportTargetObstacleState(targetObstacleDetected)
 activate Controller
 Controller -> SensorState: updateObstacle(rotationContext.targetSensor, targetObstacleDetected)
-Controller -> Cleaning: handleRotationSensorCheck(SensorState)
+Controller -> Cleaning: handleSensorState(SensorState)
 activate Cleaning
 Cleaning -> RotationContext: targetSensor()
 RotationContext --> Cleaning: FRONT or BACK

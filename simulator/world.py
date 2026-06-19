@@ -13,14 +13,16 @@ from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 
 DEFAULT_MAP = [
-    "############",
-    "#..........#",
-    "#..D.......#",
-    "#....#.....#",
-    "#..R.......#",
-    "#......D...#",
-    "#..........#",
-    "############",
+    "##########",
+    "#D......D#",
+    "#D######.#",
+    "#.#....#.#",
+    "#.#.##.#.#",
+    "#.#.##.#.#",
+    "#.#.#DD#.#",
+    "#.#.####.#",
+    "#.#DD...D#",
+    "#R########",
 ]
 
 
@@ -187,6 +189,10 @@ class GridWorld:
         return self._direction
 
     @property
+    def initial_robot(self) -> Position:
+        return self._initial_robot
+
+    @property
     def last_physics_message(self) -> str:
         return self._last_physics_message
 
@@ -221,16 +227,14 @@ class GridWorld:
         return len(self._reachable_floor)
 
     def coverage_complete(self) -> bool:
-        reachable_dust = self._dust.intersection(self._reachable_floor)
-        return self.cleaned_count() >= self.cleanable_count() and not reachable_dust
+        return self.cleaned_count() >= self.cleanable_count()
 
     def current_cell_has_dust(self) -> bool:
         return self.has_dust(self._robot.x, self._robot.y)
 
-    def clear_current_dust(self) -> None:
-        self._dust.discard((self._robot.x, self._robot.y))
+    def mark_current_dust_detected(self) -> None:
         self._mark_current_cell_clean()
-        self._last_physics_message = "dust cleaned"
+        self._last_physics_message = "dust detected"
 
     def sensor_values(self, back_unknown: bool = False, coverage_bias: bool = True) -> Tuple[str, str, str, str]:
         coverage_open_neighbors = self._coverage_open_neighbors() if coverage_bias else None
@@ -240,22 +244,23 @@ class GridWorld:
         right = self._obstacle_in_relative_direction(1, coverage_open_neighbors)
         return front, back, left, right
 
-    def set_obstacles_command(self, back_unknown: bool = False, coverage_bias: bool = True) -> str:
-        front, back, left, _right = self.sensor_values(back_unknown, coverage_bias)
-        return f"SET_OBSTACLES FRONT={front} BACK={back} LEFT={left}"
+    def sensor_snapshot_command(self, back_unknown: bool = False, coverage_bias: bool = True) -> str:
+        front, back, _left, _right = self.sensor_values(back_unknown, coverage_bias)
+        dust = "1" if self.current_cell_has_dust() else "0"
+        return f"SET_SENSOR_SNAPSHOT FRONT={front} BACK={back} DUST={dust}"
 
     def apply_drive(self, drive: str) -> StepResult:
         if drive == "MOVE_FORWARD":
             return self._move_by_direction(self._direction, "moved forward", "front blocked by world")
         if drive == "MOVE_BACKWARD":
             return self._move_by_direction(self._opposite_direction(), "moved backward", "back blocked by world")
-        if drive == "TURN_LEFT":
+        if drive in ("TURN_COUNTER_CLOCKWISE_90", "TURN_LEFT"):
             self._direction = self._relative_direction(-1)
-            self._last_physics_message = "turned left"
+            self._last_physics_message = "turned counter-clockwise"
             return StepResult(False, False, self._last_physics_message)
-        if drive == "TURN_RIGHT":
+        if drive in ("TURN_CLOCKWISE_90", "TURN_RIGHT"):
             self._direction = self._relative_direction(1)
-            self._last_physics_message = "turned right"
+            self._last_physics_message = "turned clockwise"
             return StepResult(False, False, self._last_physics_message)
         if drive == "STOP":
             self._last_physics_message = "stopped"
@@ -335,9 +340,7 @@ class GridWorld:
         return {position for position, distance in candidates if distance == best_distance}
 
     def _coverage_targets(self) -> Set[Tuple[int, int]]:
-        uncleaned = self._reachable_floor.difference(self._cleaned)
-        reachable_dust = self._dust.intersection(self._reachable_floor)
-        return uncleaned.union(reachable_dust)
+        return self._reachable_floor.difference(self._cleaned)
 
     def _distance_to_nearest_target(self, start: Tuple[int, int], targets: Set[Tuple[int, int]]) -> Optional[int]:
         if start in targets:

@@ -44,11 +44,11 @@ Windows may show a firewall prompt the first time the app listens on a TCP port.
 
 ## Run Map Simulation Mode
 
-Map mode is the default. The Python world stores walls, dust, cleaned cells, robot position, and robot direction. Each simulation step sends `SET_OBSTACLES ...` based on the robot's neighboring cells, then reads `GET_STATE` and applies the returned `DRIVE` value.
+Map mode is the default. The Python world stores walls, dust, cleaned cells, robot position, and robot direction. Each simulation step sends `SET_SENSOR_SNAPSHOT FRONT=... BACK=... DUST=...` based on the robot's neighboring cells and current tile, then reads `GET_STATE` and applies the returned `DRIVE` value.
 
-Coverage assist is enabled by default. It opens the neighboring cell or cells that lead by the shortest reachable path to the nearest uncleaned floor or dust target, and reports less useful neighboring cells as temporary virtual obstacles. This keeps the demo from orbiting a local wall while another reachable area remains uncleaned, while C++ still decides the actual `DRIVE` command from the sensor line it receives. Press `B` to toggle this assist for debugging.
+Coverage assist is available for debugging. It opens the neighboring cell or cells that lead by the shortest reachable path to the nearest uncleaned floor target, and reports less useful neighboring cells as temporary virtual obstacles. This keeps the demo from orbiting a local wall while another reachable area remains uncleaned, while C++ still decides the actual `DRIVE` command from the sensor line it receives. Press `B` to toggle this assist.
 
-When `GET_STATE` reports `TIMER_ACTIVE=1`, the simulator waits about five seconds and sends `POWER_TIMEOUT` automatically. This mirrors the C++ controller's default dust-response timer event and returns `CLEANING_POWER=INCREASED` to `NORMAL` without manual input. If the C++ policy duration changes, pass `--dust-timeout <seconds>` to keep the simulator aligned.
+Dust remains on the map after Boost cleaning. When the robot returns to the same dust tile, the simulator reports `DUST=1` again so the controller can run the Boost rotation again.
 
 macOS:
 
@@ -117,7 +117,7 @@ python simulator/simulator.py --host 127.0.0.1 --port 9090 --mode manual
 
 In play mode, the simulator runs one step about every 0.45 seconds.
 
-When every floor cell reachable from the initial robot position has been cleaned and reachable dust has been removed, play mode stops automatically and the status panel shows `coverage complete`.
+Dust tiles are not removed during play mode, and reaching the inner area does not stop the simulator automatically.
 
 ## Manual Mode Keyboard Controls
 
@@ -132,14 +132,12 @@ When every floor cell reachable from the initial robot position has been cleaned
 | `3` | `SET_BACK 0`, then `GET_STATE` |
 | `4` | `SET_BACK 1`, then `GET_STATE` |
 | `5` | `SET_BACK UNKNOWN`, then `GET_STATE` |
-| `Q` | `SET_LEFT 1`, then `GET_STATE` |
-| `E` | `SET_LEFT 0`, then `GET_STATE` |
-| `A` | `SET_OBSTACLES FRONT=0 BACK=UNKNOWN LEFT=0`, then `GET_STATE` |
-| `S` | `SET_OBSTACLES FRONT=1 BACK=UNKNOWN LEFT=0`, then `GET_STATE` |
-| `D` | `SET_OBSTACLES FRONT=1 BACK=0 LEFT=1`, then `GET_STATE` |
-| `F` | `SET_OBSTACLES FRONT=1 BACK=1 LEFT=1`, then `GET_STATE` |
-| `Z` | `DUST_DETECTED`, then `GET_STATE` |
-| `X` | `POWER_TIMEOUT`, then `GET_STATE` |
+| `A` | `SET_SENSOR_SNAPSHOT FRONT=0 BACK=0 DUST=0`, then `GET_STATE` |
+| `S` | `SET_SENSOR_SNAPSHOT FRONT=1 BACK=0 DUST=0`, then `GET_STATE` |
+| `D` | `SET_SENSOR_SNAPSHOT FRONT=0 BACK=1 DUST=0`, then `GET_STATE` |
+| `F` | `SET_SENSOR_SNAPSHOT FRONT=1 BACK=1 DUST=0`, then `GET_STATE` |
+| `Z` | `SET_SENSOR_SNAPSHOT FRONT=0 BACK=0 DUST=1`, then `GET_STATE` |
+| `X` | `SET_SENSOR_SNAPSHOT FRONT=0 BACK=0 DUST=0`, then `GET_STATE` |
 | `Esc` | Exit |
 
 ## GET_STATE Parsing
@@ -147,7 +145,7 @@ When every floor cell reachable from the initial robot position has been cleaned
 The simulator expects a single-line key-value response:
 
 ```text
-OK STATE MOVEMENT=CLEANING FRONT=0 BACK=UNKNOWN LEFT=0 DUST=0 DRIVE=MOVE_FORWARD CLEANING_POWER=NORMAL TIMER_ACTIVE=0
+OK STATE MOVEMENT=CLEANING DIRECTION=FORWARD ROTATION_ACTIVE=0 FRONT=0 BACK=UNKNOWN DUST=0 DRIVE=MOVE_FORWARD CLEANING_POWER=NORMAL
 ```
 
 It parses the response by splitting whitespace and `KEY=VALUE` tokens. JSON is not used.
@@ -156,5 +154,5 @@ It parses the response by splitting whitespace and `KEY=VALUE` tokens. JSON is n
 
 - Python owns the map, robot coordinates, direction, dust locations, sensor calculation, and rendering.
 - C++ owns the controller decision. Python does not choose whether to move forward, turn, stop, or move backward.
-- Python applies `DRIVE=MOVE_FORWARD`, `MOVE_BACKWARD`, `TURN_LEFT`, `TURN_RIGHT`, `STOP`, or `NONE` to its local world after C++ returns `GET_STATE`.
+- Python applies `DRIVE=MOVE_FORWARD`, `MOVE_BACKWARD`, `TURN_CLOCKWISE_90`, `TURN_COUNTER_CLOCKWISE_90`, `STOP`, or `NONE` to its local world after C++ returns `GET_STATE`.
 - Coverage assist only changes the Python-side sensor values sent to C++; it does not change the C++ protocol or domain model.

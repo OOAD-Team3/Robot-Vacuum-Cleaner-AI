@@ -8,13 +8,13 @@ from typing import Dict, Optional
 
 STATE_FIELDS = {
     "MOVEMENT",
+    "DIRECTION",
+    "ROTATION_ACTIVE",
     "FRONT",
     "BACK",
-    "LEFT",
     "DUST",
     "DRIVE",
     "CLEANING_POWER",
-    "TIMER_ACTIVE",
 }
 
 

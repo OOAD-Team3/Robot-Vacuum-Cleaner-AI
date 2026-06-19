@@ -20,7 +20,6 @@ except ImportError:
 MAP_MODE = "map"
 MANUAL_MODE = "manual"
 PLAY_INTERVAL_SECONDS = 0.45
-DEFAULT_DUST_POWER_TIMEOUT_SECONDS = 5.0
 
 
 @dataclass
@@ -33,12 +32,9 @@ class SimulatorModel:
     mode: str = MAP_MODE
     playing: bool = False
     physics_message: str = ""
-    coverage_bias: bool = True
+    coverage_bias: bool = False
     map_names: list[str] = field(default_factory=list)
     map_index: int = 0
-    power_timeout_deadline: Optional[float] = None
-    timer_active_observed: bool = False
-    dust_timeout_seconds: float = DEFAULT_DUST_POWER_TIMEOUT_SECONDS
 
 
 def manual_command_for_key(key: int, pygame_module) -> Optional[Tuple[str, bool]]:
@@ -48,42 +44,19 @@ def manual_command_for_key(key: int, pygame_module) -> Optional[Tuple[str, bool]
         pygame_module.K_3: ("SET_BACK 0", True),
         pygame_module.K_4: ("SET_BACK 1", True),
         pygame_module.K_5: ("SET_BACK UNKNOWN", True),
-        pygame_module.K_q: ("SET_LEFT 1", True),
-        pygame_module.K_e: ("SET_LEFT 0", True),
-        pygame_module.K_a: ("SET_OBSTACLES FRONT=0 BACK=UNKNOWN LEFT=0", True),
-        pygame_module.K_s: ("SET_OBSTACLES FRONT=1 BACK=UNKNOWN LEFT=0", True),
-        pygame_module.K_d: ("SET_OBSTACLES FRONT=1 BACK=0 LEFT=1", True),
-        pygame_module.K_f: ("SET_OBSTACLES FRONT=1 BACK=1 LEFT=1", True),
-        pygame_module.K_z: ("DUST_DETECTED", True),
-        pygame_module.K_x: ("POWER_TIMEOUT", True),
+        pygame_module.K_a: ("SET_SENSOR_SNAPSHOT FRONT=0 BACK=0 DUST=0", True),
+        pygame_module.K_s: ("SET_SENSOR_SNAPSHOT FRONT=1 BACK=0 DUST=0", True),
+        pygame_module.K_d: ("SET_SENSOR_SNAPSHOT FRONT=0 BACK=1 DUST=0", True),
+        pygame_module.K_f: ("SET_SENSOR_SNAPSHOT FRONT=1 BACK=1 DUST=0", True),
+        pygame_module.K_z: ("SET_SENSOR_SNAPSHOT FRONT=0 BACK=0 DUST=1", True),
+        pygame_module.K_x: ("SET_SENSOR_SNAPSHOT FRONT=0 BACK=0 DUST=0", True),
     }
     return mapping.get(key)
-
-
-def clear_power_timer_tracking(model: SimulatorModel) -> None:
-    model.power_timeout_deadline = None
-    model.timer_active_observed = False
-
-
-def force_power_timer_resync(model: SimulatorModel) -> None:
-    clear_power_timer_tracking(model)
-
-
-def sync_power_timer_tracking(model: SimulatorModel) -> None:
-    timer_active = model.state.get("TIMER_ACTIVE") == "1"
-    if timer_active:
-        if not model.timer_active_observed or model.power_timeout_deadline is None:
-            model.power_timeout_deadline = time.monotonic() + model.dust_timeout_seconds
-        model.timer_active_observed = True
-        return
-
-    clear_power_timer_tracking(model)
 
 
 def update_state_from_response(model: SimulatorModel, response: str) -> None:
     if response.startswith("OK STATE"):
         model.state = parse_state_response(response)
-        sync_power_timer_tracking(model)
 
 
 def ensure_connected(client: RvcClient, model: SimulatorModel) -> bool:
@@ -123,9 +96,6 @@ def issue_command(
             model.error_message = response
             return response
 
-        if command == "DUST_DETECTED":
-            force_power_timer_resync(model)
-
         if refresh_state and command != "GET_STATE":
             refresh_state_after_command(client, model)
 
@@ -143,7 +113,6 @@ def request_state(client: RvcClient, model: SimulatorModel) -> Optional[Dict[str
 
     try:
         model.state = parse_state_response(response)
-        sync_power_timer_tracking(model)
         return model.state
     except ProtocolError as error:
         model.error_message = str(error)
@@ -156,7 +125,6 @@ def refresh_state_after_command(client: RvcClient, model: SimulatorModel) -> Opt
         model.last_response = response
         model.connected = client.connected
         model.state = parse_state_response(response)
-        sync_power_timer_tracking(model)
         return model.state
     except (ConnectionError, TimeoutError, ProtocolError, OSError) as error:
         model.connected = False
@@ -164,23 +132,10 @@ def refresh_state_after_command(client: RvcClient, model: SimulatorModel) -> Opt
         return None
 
 
-def process_power_timer(client: RvcClient, model: SimulatorModel) -> None:
-    if model.power_timeout_deadline is None:
-        return
-
-    if time.monotonic() < model.power_timeout_deadline:
-        return
-
-    response = issue_command(client, model, "POWER_TIMEOUT", refresh_state=True)
-    if response is None or response.startswith("ERR "):
-        clear_power_timer_tracking(model)
-
-
 def reset_simulation(client: RvcClient, model: SimulatorModel, world: GridWorld) -> None:
     world.reset()
     model.physics_message = world.last_physics_message
     model.playing = False
-    clear_power_timer_tracking(model)
     issue_command(client, model, "RESET", refresh_state=True)
 
 
@@ -195,7 +150,6 @@ def switch_map_preset(client: RvcClient, model: SimulatorModel, world: GridWorld
     model.playing = False
     model.error_message = ""
     model.physics_message = f"map switched: {map_name}"
-    clear_power_timer_tracking(model)
     issue_command(client, model, "RESET", refresh_state=True)
     model.physics_message = f"map switched: {map_name}"
 
@@ -204,22 +158,11 @@ def run_map_step(client: RvcClient, model: SimulatorModel, world: GridWorld) -> 
     if not ensure_connected(client, model):
         return
 
-    if world.current_cell_has_dust():
-        response = issue_command(client, model, "DUST_DETECTED", refresh_state=False)
-        if response is None or response.startswith("ERR "):
-            return
+    current_cell_has_dust = world.current_cell_has_dust()
+    if current_cell_has_dust:
+        world.mark_current_dust_detected()
 
-        state = refresh_state_after_command(client, model)
-        if state and (state.get("CLEANING_POWER") == "INCREASED" or state.get("DUST") == "1"):
-            world.clear_current_dust()
-            model.physics_message = world.last_physics_message
-            stop_if_coverage_complete(model, world)
-        return
-
-    if stop_if_coverage_complete(model, world):
-        return
-
-    command = world.set_obstacles_command(back_unknown=False, coverage_bias=model.coverage_bias)
+    command = world.sensor_snapshot_command(back_unknown=False, coverage_bias=model.coverage_bias)
     response = issue_command(client, model, command, refresh_state=False)
     if response is None or response.startswith("ERR "):
         return
@@ -229,17 +172,7 @@ def run_map_step(client: RvcClient, model: SimulatorModel, world: GridWorld) -> 
         return
 
     result = world.apply_drive(state.get("DRIVE", "NONE"))
-    model.physics_message = result.message
-    stop_if_coverage_complete(model, world)
-
-
-def stop_if_coverage_complete(model: SimulatorModel, world: GridWorld) -> bool:
-    if not world.coverage_complete():
-        return False
-
-    model.playing = False
-    model.physics_message = "coverage complete"
-    return True
+    model.physics_message = result.message if result.message != "no movement" or not current_cell_has_dust else "dust detected"
 
 
 def color_for_binary(value: str) -> Tuple[int, int, int]:
@@ -327,27 +260,43 @@ def draw_world(surface, font, small_font, world: GridWorld, state: Dict[str, str
     pygame.draw.rect(surface, (25, 31, 43), map_rect, border_radius=8)
     pygame.draw.rect(surface, (86, 101, 126), map_rect, 1, border_radius=8)
 
+    robot = world.robot
+    start = world.initial_robot
     for y in range(world.height):
         for x in range(world.width):
             tile = pygame.Rect(origin_x + x * tile_size, origin_y + y * tile_size, tile_size, tile_size)
             if world.is_wall(x, y):
-                color = (69, 79, 99)
+                color = (45, 47, 50)
             elif world.has_dust(x, y):
-                color = (58, 47, 43)
-            elif world.is_cleaned(x, y):
-                color = (36, 67, 58)
+                color = (226, 202, 89)
+            elif x == start.x and y == start.y:
+                color = (104, 160, 101)
             else:
-                color = (32, 39, 53)
+                color = (235, 238, 234)
 
             pygame.draw.rect(surface, color, tile)
-            pygame.draw.rect(surface, (23, 28, 39), tile, 1)
+            pygame.draw.rect(surface, (138, 145, 143), tile, 1)
 
             if world.has_dust(x, y):
-                pygame.draw.circle(surface, (219, 185, 93), tile.center, max(4, tile_size // 7))
+                pygame.draw.circle(surface, (133, 111, 42), tile.center, max(3, tile_size // 9))
+            elif x == start.x and y == start.y:
+                arrow_color = (245, 248, 246)
+                top = int(tile.top + tile_size * 0.25)
+                bottom = int(tile.bottom - tile_size * 0.25)
+                center_x = tile.centerx
+                pygame.draw.line(surface, arrow_color, (center_x, bottom), (center_x, top), max(2, tile_size // 12))
+                pygame.draw.polygon(
+                    surface,
+                    arrow_color,
+                    [
+                        (center_x, top),
+                        (int(center_x - tile_size * 0.14), int(top + tile_size * 0.18)),
+                        (int(center_x + tile_size * 0.14), int(top + tile_size * 0.18)),
+                    ],
+                )
             elif world.is_cleaned(x, y) and not world.is_wall(x, y):
-                pygame.draw.circle(surface, (83, 170, 125), tile.center, max(2, tile_size // 14))
+                pygame.draw.circle(surface, (116, 169, 126), tile.center, max(2, tile_size // 16))
 
-    robot = world.robot
     robot_rect = pygame.Rect(
         origin_x + robot.x * tile_size,
         origin_y + robot.y * tile_size,
@@ -371,7 +320,7 @@ def draw_world(surface, font, small_font, world: GridWorld, state: Dict[str, str
     sensors = [
         ("FRONT", state.get("FRONT", "-")),
         ("BACK", state.get("BACK", "-")),
-        ("LEFT", state.get("LEFT", "-")),
+        ("DUST", state.get("DUST", "-")),
     ]
     x = 48
     for label, value in sensors:
@@ -395,7 +344,7 @@ def draw_manual_robot(surface, font, state: Dict[str, str]) -> None:
     sensors = {
         "FRONT": (center[0], robot_rect.top - 45),
         "BACK": (center[0], robot_rect.bottom + 45),
-        "LEFT": (robot_rect.left - 55, center[1]),
+        "DUST": (robot_rect.right + 55, center[1]),
     }
 
     for name, position in sensors.items():
@@ -471,10 +420,10 @@ def draw_panel(surface, font, small_font, model: SimulatorModel, world: GridWorl
 
     y += 36
     state_rows = [
-        (("MOVEMENT", model.state.get("MOVEMENT", "-")), ("FRONT", model.state.get("FRONT", "-"))),
-        (("DRIVE", model.state.get("DRIVE", "-")), ("BACK", model.state.get("BACK", "-"))),
-        (("CLEANING_POWER", model.state.get("CLEANING_POWER", "-")), ("LEFT", model.state.get("LEFT", "-"))),
-        (("TIMER_ACTIVE", model.state.get("TIMER_ACTIVE", "-")), ("DUST", model.state.get("DUST", "-"))),
+        (("MOVEMENT", model.state.get("MOVEMENT", "-")), ("DIRECTION", model.state.get("DIRECTION", "-"))),
+        (("DRIVE", model.state.get("DRIVE", "-")), ("ROTATION", model.state.get("ROTATION_ACTIVE", "-"))),
+        (("CLEANING_POWER", model.state.get("CLEANING_POWER", "-")), ("FRONT", model.state.get("FRONT", "-"))),
+        (("BACK", model.state.get("BACK", "-")), ("DUST", model.state.get("DUST", "-"))),
     ]
 
     state_col2_x = content_x + 320
@@ -571,14 +520,12 @@ def draw_help(surface, small_font, mode: str) -> None:
             ("3", "BACK=0"),
             ("4", "BACK=1"),
             ("5", "BACK=UNK"),
-            ("Q", "LEFT=1"),
-            ("E", "LEFT=0"),
             ("A", "clear"),
             ("S", "front"),
-            ("D", "3-side"),
-            ("F", "all"),
+            ("D", "back"),
+            ("F", "blocked"),
             ("Z", "dust"),
-            ("X", "timeout"),
+            ("X", "no dust"),
             ("Esc", "exit"),
         ]
         draw_command_blocks(surface, help_font, blocks, 44, 748, 660, row_height=20, gap=4)
@@ -649,7 +596,6 @@ def run_simulator(
     port: int,
     mode: str,
     map_path: Optional[str],
-    dust_timeout_seconds: float,
 ) -> int:
     import pygame
 
@@ -666,7 +612,6 @@ def run_simulator(
         mode=mode,
         map_names=available_maps,
         map_index=initial_map_index,
-        dust_timeout_seconds=dust_timeout_seconds,
     )
     client = RvcClient(host, port)
 
@@ -694,7 +639,6 @@ def run_simulator(
                     running = False
 
         now = time.monotonic()
-        process_power_timer(client, model)
         if model.mode == MAP_MODE and model.playing and now - last_step_time >= PLAY_INTERVAL_SECONDS:
             run_map_step(client, model, world)
             last_step_time = now
@@ -709,7 +653,7 @@ def run_simulator(
             draw_text(screen, small_font, "Manual sensor input mode", 48, 616, (200, 210, 226))
 
         power = model.state.get("CLEANING_POWER", "OFF")
-        power_color = (96, 190, 240) if power == "INCREASED" else (94, 203, 128) if power == "NORMAL" else (126, 142, 168)
+        power_color = (96, 190, 240) if power == "BOOST" else (94, 203, 128) if power == "NORMAL" else (126, 142, 168)
         draw_text(screen, title_font, f"CLEANING POWER: {power}", 44, 710, power_color)
         draw_panel(screen, font, small_font, model, world)
         draw_help(screen, small_font, model.mode)
@@ -727,16 +671,9 @@ def main() -> int:
     parser.add_argument("--port", default=9090, type=int)
     parser.add_argument("--mode", choices=(MAP_MODE, MANUAL_MODE), default=MAP_MODE)
     parser.add_argument("--map", dest="map_path", default=None, help="Optional text map file")
-    parser.add_argument(
-        "--dust-timeout",
-        default=DEFAULT_DUST_POWER_TIMEOUT_SECONDS,
-        type=float,
-        help="Seconds to wait before sending POWER_TIMEOUT after TIMER_ACTIVE=1",
-    )
+    parser.add_argument("--dust-timeout", type=float, default=None, help=argparse.SUPPRESS)
     args = parser.parse_args()
-    if args.dust_timeout <= 0:
-        parser.error("--dust-timeout must be greater than 0")
-    return run_simulator(args.host, args.port, args.mode, args.map_path, args.dust_timeout)
+    return run_simulator(args.host, args.port, args.mode, args.map_path)
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@
 
 The protocol does not use JSON. Each request is one line ending with `\n`, and each response is one line ending with `\n`.
 
-This protocol satisfies the simulator command interface and controller state query requirements described by FR-014, FR-015, and UC-008.
+This protocol satisfies the simulator command interface and controller state query requirements described by FR-023, FR-024, and UC-008.
 
 ## Connection
 
@@ -25,10 +25,8 @@ RESET
 GET_STATE
 SET_FRONT 0|1
 SET_BACK 0|1|UNKNOWN
-SET_LEFT 0|1
-SET_OBSTACLES FRONT=0|1 BACK=0|1|UNKNOWN LEFT=0|1
+SET_SENSOR_SNAPSHOT FRONT=0|1 BACK=0|1|UNKNOWN DUST=0|1
 DUST_DETECTED
-POWER_TIMEOUT
 QUIT
 ```
 
@@ -41,17 +39,15 @@ OK PONG
 OK RESET
 OK SET_FRONT
 OK SET_BACK
-OK SET_LEFT
-OK SET_OBSTACLES
+OK SET_SENSOR_SNAPSHOT
 OK DUST_DETECTED
-OK POWER_TIMEOUT
 OK BYE
 ```
 
 State response:
 
 ```text
-OK STATE MOVEMENT=CLEANING FRONT=0 BACK=UNKNOWN LEFT=0 DUST=0 DRIVE=MOVE_FORWARD CLEANING_POWER=NORMAL TIMER_ACTIVE=0
+OK STATE MOVEMENT=CLEANING DIRECTION=FORWARD ROTATION_ACTIVE=0 FRONT=0 BACK=UNKNOWN DUST=0 DRIVE=MOVE_FORWARD CLEANING_POWER=NORMAL
 ```
 
 Error responses:
@@ -66,11 +62,11 @@ ERR INVALID_STATE
 
 | Field | Values |
 | --- | --- |
-| `MOVEMENT` | `CLEANING`, `AVOIDING_OBSTACLE`, `BLOCKED`, `STOPPED` |
+| `MOVEMENT` | `CLEANING`, `ROTATING` |
+| `DIRECTION` | `FORWARD`, `BACKWARD` |
+| `ROTATION_ACTIVE` | `0`, `1` |
 | `FRONT` | `0`, `1` |
 | `BACK` | `0`, `1`, `UNKNOWN` |
-| `LEFT` | `0`, `1` |
-| `DUST` | `0`, `1`; external dust-response observation, set after `DUST_DETECTED` and cleared by `POWER_TIMEOUT` or `RESET` |
-| `DRIVE` | `NONE`, `MOVE_FORWARD`, `MOVE_BACKWARD`, `TURN_LEFT`, `TURN_RIGHT`, `STOP` |
-| `CLEANING_POWER` | `OFF`, `NORMAL`, `INCREASED` |
-| `TIMER_ACTIVE` | `0`, `1` |
+| `DUST` | `0`, `1`; latest dust sensor observation |
+| `DRIVE` | `NONE`, `MOVE_FORWARD`, `MOVE_BACKWARD`, `TURN_CLOCKWISE_90`, `TURN_COUNTER_CLOCKWISE_90` |
+| `CLEANING_POWER` | `OFF`, `NORMAL`, `BOOST` |

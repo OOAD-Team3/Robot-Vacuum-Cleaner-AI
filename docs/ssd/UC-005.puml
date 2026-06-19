@@ -1,27 +1,26 @@
-@startuml SSD_UC005_Backward_On_Three_Side_Obstacle
+@startuml SSD_UC005_Forward_Obstacle_To_Backward
 hide footbox
-title SSD - UC-005 Move Backward After Three-Side Obstacle Detection
+title SSD - UC-005 전진 중 장애물 감지 후 후진 전환
 
-actor "Sensor Input" as Sensor
+actor "센서 입력" as Sensor
 participant "RVC SW Controller" as System
-actor "Driving Device" as Drive
+actor "청소 장치" as Cleaner
+actor "주행 장치" as Drive
 
-alt backward available
-    Sensor -> System: reportObstacleState(frontObstacleDetected=true, backObstacleDetected=false, leftObstacleDetected=true, rightObstacleDetected=true)
-    activate System
-    System -> Drive: stop()
-    System -> Drive: moveBackward()
-    alt left side becomes available
-        Sensor -> System: reportSideObstacleState(leftObstacleDetected=false, rightObstacleDetected=true)
-        note right of System: Continue with UC-003
-    else right side becomes available
-        Sensor -> System: reportSideObstacleState(leftObstacleDetected=true, rightObstacleDetected=false)
-        note right of System: Continue with UC-003
-    end
-else backward unavailable and both sides blocked
-    Sensor -> System: reportObstacleState(frontObstacleDetected=true, backObstacleDetected=true, leftObstacleDetected=true, rightObstacleDetected=true)
-    activate System
-    System -> Drive: stop()
+Sensor -> System: reportSensorSnapshot(dustDetected=false, currentDirection=FORWARD, frontObstacleDetected=true)
+activate System
+System -> Cleaner: setCleaningPower(NORMAL)
+System -> Drive: turnClockwise90()
+
+Sensor -> System: reportBackObstacleState(backObstacleDetected)
+
+loop 후방 장애물 감지
+    System -> Drive: turnClockwise90()
+    Sensor -> System: reportBackObstacleState(backObstacleDetected)
 end
+
+System -> Drive: moveBackward()
+note right of System: 진행 방향 = 후진
+
 deactivate System
 @enduml

@@ -1,25 +1,27 @@
-@startuml SSD_UC004_Resume_After_Turn
+@startuml SSD_UC004_Backward_Dust_To_Forward
 hide footbox
-title SSD - UC-004 Resume Cleaning After Direction Change
+title SSD - UC-004 후진 중 먼지 감지 후 전진 전환
 
-actor "Sensor Input" as Sensor
+actor "센서 입력" as Sensor
 participant "RVC SW Controller" as System
-actor "Driving Device" as Drive
-actor "Cleaning Device" as Cleaner
+actor "청소 장치" as Cleaner
+actor "주행 장치" as Drive
 
-Sensor -> System: reportFrontObstacleState(frontObstacleDetected=false)
+Sensor -> System: reportSensorSnapshot(dustDetected=true, currentDirection=BACKWARD)
 activate System
+System -> Cleaner: setCleaningPower(BOOST)
+System -> Drive: turnCounterClockwise90()
+
+Sensor -> System: reportFrontObstacleState(frontObstacleDetected)
+
+loop 전방 장애물 감지
+    System -> Drive: turnCounterClockwise90()
+    Sensor -> System: reportFrontObstacleState(frontObstacleDetected)
+end
+
+System -> Cleaner: setCleaningPower(NORMAL)
 System -> Drive: moveForward()
+note right of System: 진행 방향 = 전진
 
-alt dust response is active
-    System -> Cleaner: keepCleaningPower(increased)
-else normal cleaning
-    System -> Cleaner: setCleaningPower(normal)
-end
-
-alt front obstacle detected again
-    Sensor -> System: reportFrontObstacleState(frontObstacleDetected=true)
-    note right of System: Continue with UC-003
-end
 deactivate System
 @enduml

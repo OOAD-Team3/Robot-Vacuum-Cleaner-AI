@@ -1,72 +1,52 @@
-' SD-05. UC-005 삼면 장애물 감지 후 후진
-' Related Use Case: UC-005. 삼면 장애물 감지 후 후진
-' Intent: 전방, 좌측, 우측이 모두 막힌 상태에서 후방 장애물 여부를 확인하고 후진 또는 정지로 분기하는 흐름을 표현한다.
-' Note: 후방 장애물이 없으면 후진하고, 후방 장애물이 있으면 정지 상태를 유지한다.
+' SD-05. UC-005 전진 중 장애물 감지 후 후진 전환
+' Related Use Case: UC-005. 전진 중 장애물 감지 후 후진 전환
+' Intent: 전진 중 먼지가 없고 전방 장애물이 감지될 때 일반 모드로 시계 방향 90도 회전을 시작하고 후방이 열리면 후진으로 전환하는 흐름을 표현한다.
 
-@startuml SD_05_UC005_Backward_On_Three_Side_Obstacle
+@startuml SD_05_UC005_Forward_Obstacle_To_Backward
 hide footbox
-title SD-05 - UC-005 삼면 장애물 감지 후 후진
+title SD-05 - UC-005 전진 중 장애물 감지 후 후진 전환
 
 actor "센서 입력" as Sensor
 participant "RVC SW Controller" as Controller
 participant "SensorState" as SensorState
 participant "AutomaticCleaning" as Cleaning
+participant "RotationContext" as RotationContext
+participant "CommandResult" as CommandResult
+participant "CleaningCommand" as CleaningCommand
 participant "MovementCommand" as MovementCommand
+actor "청소 장치" as Cleaner
 actor "주행 장치" as Drive
 
-alt 후진 가능
-    Sensor -> Controller: reportObstacleState(frontObstacleDetected=true, backObstacleDetected=false, leftObstacleDetected=true, rightObstacleDetected=true)
-    activate Controller
-    Controller -> SensorState: updateObstacles(frontObstacleDetected=true, backObstacleDetected=false, leftObstacleDetected=true, rightObstacleDetected=true)
-    Controller -> Cleaning: handleThreeSideObstacle(SensorState)
-    activate Cleaning
-    Cleaning -> SensorState: isThreeSideBlocked()
-    SensorState --> Cleaning: true
-    Cleaning -> Cleaning: changeMovementStatus(BLOCKED)
-    Cleaning -> MovementCommand: create(STOP)
-    MovementCommand --> Cleaning: stopCommand
-    Cleaning --> Controller: commandResult(stopCommand)
-    Controller -> Drive: stop()
-    Cleaning -> SensorState: canMoveBackward()
-    SensorState --> Cleaning: true
-    Cleaning -> MovementCommand: create(MOVE_BACKWARD)
-    MovementCommand --> Cleaning: backwardCommand
-    Cleaning --> Controller: commandResult(backwardCommand)
-    Controller -> Drive: moveBackward()
-    Drive --> Controller: backwardCompleted()
-    Sensor -> Controller: reportSideObstacleState(leftObstacleDetected, rightObstacleDetected)
-    Controller -> SensorState: updateSideObstacles(leftObstacleDetected, rightObstacleDetected)
-    alt 좌측만 이동 가능
-        Controller -> Cleaning: selectAvoidanceDirection(SensorState)
-        note right of Cleaning: UC-003에서 LEFT 선택
-    else 우측만 이동 가능
-        Controller -> Cleaning: selectAvoidanceDirection(SensorState)
-        note right of Cleaning: UC-003에서 RIGHT 선택
-    else 좌측과 우측 모두 이동 가능
-        Controller -> Cleaning: selectAvoidanceDirection(SensorState)
-        note right of Cleaning: UC-003에서 정책에 따라 선택
-    else 좌측과 우측 모두 계속 막힘
-        Controller -> Cleaning: handleThreeSideObstacle(SensorState)
-        note right of Cleaning: BLOCKED 상태 유지 또는 추가 후진 판단
-    end
-else 후진 불가 및 좌우 모두 막힘
-    Sensor -> Controller: reportObstacleState(frontObstacleDetected=true, backObstacleDetected=true, leftObstacleDetected=true, rightObstacleDetected=true)
-    activate Controller
-    Controller -> SensorState: updateObstacles(frontObstacleDetected=true, backObstacleDetected=true, leftObstacleDetected=true, rightObstacleDetected=true)
-    Controller -> Cleaning: handleThreeSideObstacle(SensorState)
-    activate Cleaning
-    Cleaning -> SensorState: isThreeSideBlocked()
-    SensorState --> Cleaning: true
-    Cleaning -> SensorState: canMoveBackward()
-    SensorState --> Cleaning: false
-    Cleaning -> MovementCommand: create(STOP)
-    MovementCommand --> Cleaning: stopCommand
-    Cleaning -> Cleaning: changeMovementStatus(STOPPED)
-    Cleaning --> Controller: commandResult(stopCommand)
-    Controller -> Drive: stop()
-end
-
-Cleaning --> Controller: threeSideObstacleHandled()
+Sensor -> Controller: reportSensorSnapshot(dustDetected=false, currentDirection=FORWARD, frontObstacleDetected=true)
+activate Controller
+Controller -> SensorState: updateSnapshot(frontObstacleDetected=true, backObstacleDetected, dustDetected=false)
+Controller -> Cleaning: startObstacleResponse(SensorState)
+activate Cleaning
+Cleaning -> SensorState: currentDirection()
+SensorState --> Cleaning: FORWARD
+Cleaning -> RotationContext: start(cause=OBSTACLE, rotation=CLOCKWISE, targetSensor=BACK, nextDirection=BACKWARD)
+RotationContext --> Cleaning: activeContext
+Cleaning -> CleaningCommand: create(NORMAL)
+Cleaning -> MovementCommand: create(TURN_CLOCKWISE_90)
+Cleaning -> CommandResult: withCleaning(normalCommand)
+Cleaning -> CommandResult: withMovement(turnCommand)
+Cleaning --> Controller: commandResult
 deactivate Cleaning
+
+Controller -> Cleaner: setCleaningPower(NORMAL)
+Controller -> Drive: turnClockwise90()
+
+Sensor -> Controller: reportBackObstacleState(backObstacleDetected=false)
+Controller -> SensorState: updateBackObstacle(false)
+Controller -> Cleaning: completeRotationIfTargetClear(SensorState)
+activate Cleaning
+Cleaning -> SensorState: obstacleDetectedIn(BACKWARD)
+SensorState --> Cleaning: false
+Cleaning -> RotationContext: complete()
+Cleaning -> MovementCommand: create(MOVE_BACKWARD)
+Cleaning --> Controller: commandResult(moveBackwardCommand)
+deactivate Cleaning
+
+Controller -> Drive: moveBackward()
 deactivate Controller
 @enduml

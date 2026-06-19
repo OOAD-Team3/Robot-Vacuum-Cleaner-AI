@@ -1,9 +1,9 @@
-' Class Diagram derived from docs/sd/SD-01.puml through SD-08.puml and the rvc_app support implementation.
-' Intent: Show the structural design implied by the sequence diagrams for automatic cleaning,
-' obstacle avoidance, dust response, command generation, and simulator/system-test integration.
+' Class Diagram derived from docs/sd/SD-01.puml through SD-08.puml.
+' Intent: Show the target structural design for the changed requirements:
+' dust-first decision, forward/backward travel direction toggle, 90-degree rotation
+' rechecks, Boost only during dust-driven in-place rotation, and TCP simulator integration.
 ' Scope: Hardware details are represented as interfaces because requirements keep sensor,
-' driving, and cleaning devices abstract.
-' Python simulator internals are external to this C++ design; they communicate through the TCP command protocol.
+' driving, and cleaning devices abstract. Python simulator internals remain external.
 
 @startuml RVC_Class_Diagram
 title RVC SW Controller Class Diagram
@@ -14,30 +14,21 @@ hide empty members
 
 package "External Interfaces" as ExternalInterfaces {
   interface "SensorInput" as SensorInput {
+    +reportSensorSnapshot(frontObstacleDetected: boolean, backObstacleDetected: BackObstacleInput, dustDetected: boolean)
     +reportFrontObstacleState(frontObstacleDetected: boolean)
-    +reportBackObstacleState(backObstacleDetected: boolean)
-    +reportSideObstacleState(leftObstacleDetected: boolean, rightObstacleDetected: boolean)
-    +reportObstacleState(frontObstacleDetected: boolean, leftObstacleDetected: boolean, rightObstacleDetected: boolean)
-    +reportObstacleState(frontObstacleDetected: boolean, backObstacleDetected: boolean, leftObstacleDetected: boolean, rightObstacleDetected: boolean)
+    +reportBackObstacleState(backObstacleDetected: BackObstacleInput)
     +reportDustDetected()
   }
 
   interface "DrivingDevice" as DrivingDevice {
     +moveForward()
     +moveBackward()
-    +turnLeft()
-    +turnRight()
-    +turn(direction: AvoidanceDirection)
-    +stop()
+    +turnClockwise90()
+    +turnCounterClockwise90()
   }
 
   interface "CleaningDevice" as CleaningDevice {
     +setCleaningPower(powerLevel: CleaningPowerLevel)
-    +keepCleaningPower(powerLevel: CleaningPowerLevel)
-  }
-
-  interface "Time" as Time {
-    +startTimer(duration: Duration)
   }
 }
 
@@ -74,9 +65,8 @@ package "Protocol Adapter" as ProtocolAdapter {
   class "ParsedCommand" as ParsedCommand {
     -type: CommandType
     -frontObstacleDetected: boolean
-    -backObstacleDetected: BackObstacleValue
-    -leftObstacleDetected: boolean
-    -rightObstacleDetected: boolean
+    -backObstacleDetected: BackObstacleInput
+    -dustDetected: boolean
     +type(): CommandType
   }
 
@@ -105,43 +95,35 @@ package "Simulation Support" as SimulationSupport {
   class "RobotVacuumApplication" as RobotVacuumApplication {
     -drivingDevice: RecordingDrivingDevice
     -cleaningDevice: RecordingCleaningDevice
-    -time: AppTime
     -controller: RVCSWController
     -frontObstacleDetected: boolean
-    -backObstacleDetected: optional<boolean>
-    -leftObstacleDetected: boolean
-    -rightObstacleDetected: boolean
+    -backObstacleDetected: BackObstacleInput
     -dustDetected: boolean
     +reset()
+    +applySensorInput(frontDetected: boolean, backDetected: BackObstacleInput, dustDetected: boolean)
     +setFrontObstacle(detected: boolean)
     +setBackObstacle(detected: BackObstacleInput)
-    +setSideObstacles(leftDetected: boolean, rightDetected: boolean)
-    +setObstacleState(frontDetected: boolean, backDetected: BackObstacleInput, leftDetected: boolean, rightDetected: boolean)
     +reportDustDetected()
-    +expirePowerTimer(): boolean
     +snapshot(): ControllerStateSnapshot
   }
 
   class "ControllerStateSnapshot" as ControllerStateSnapshot {
     -movementStatus: MovementStatus
+    -travelDirection: TravelDirection
     -frontObstacleDetected: boolean
-    -backObstacleDetected: optional<boolean>
-    -leftObstacleDetected: boolean
-    -rightObstacleDetected: boolean
+    -backObstacleDetected: BackObstacleInput
     -dustDetected: boolean
+    -rotationActive: boolean
     -driveCommand: DriveCommand
     -cleaningPower: CleaningPowerState
-    -timerActive: boolean
   }
 
   class "RecordingDrivingDevice" as RecordingDrivingDevice {
     -lastCommand: DriveCommand
     +moveForward()
     +moveBackward()
-    +turnLeft()
-    +turnRight()
-    +turn(direction: AvoidanceDirection)
-    +stop()
+    +turnClockwise90()
+    +turnCounterClockwise90()
     +reset()
     +lastCommand(): DriveCommand
   }
@@ -149,19 +131,8 @@ package "Simulation Support" as SimulationSupport {
   class "RecordingCleaningDevice" as RecordingCleaningDevice {
     -powerState: CleaningPowerState
     +setCleaningPower(powerLevel: CleaningPowerLevel)
-    +keepCleaningPower(powerLevel: CleaningPowerLevel)
     +reset()
     +powerState(): CleaningPowerState
-  }
-
-  class "AppTime" as AppTime {
-    -timerActive: boolean
-    -activeDuration: Duration
-    +startTimer(duration: Duration)
-    +reset()
-    +expireTimer()
-    +isTimerActive(): boolean
-    +activeDuration(): Duration
   }
 }
 
@@ -169,99 +140,85 @@ package "Application Controller" as ApplicationController {
   class "RVCSWController" as RVCSWController {
     -sensorState: SensorState
     -automaticCleaning: AutomaticCleaning
+    +reportSensorSnapshot(frontObstacleDetected: boolean, backObstacleDetected: BackObstacleInput, dustDetected: boolean)
     +reportFrontObstacleState(frontObstacleDetected: boolean)
-    +reportBackObstacleState(backObstacleDetected: boolean)
-    +reportSideObstacleState(leftObstacleDetected: boolean, rightObstacleDetected: boolean)
-    +reportObstacleState(frontObstacleDetected: boolean, leftObstacleDetected: boolean, rightObstacleDetected: boolean)
-    +reportObstacleState(frontObstacleDetected: boolean, backObstacleDetected: boolean, leftObstacleDetected: boolean, rightObstacleDetected: boolean)
+    +reportBackObstacleState(backObstacleDetected: BackObstacleInput)
     +reportDustDetected()
-    +increasedPowerDurationExpired()
+    -apply(result: CommandResult)
     -executeMovementCommand(command: MovementCommand)
     -executeCleaningCommand(command: CleaningCommand)
-    -startTimerIfNeeded(duration: Duration)
   }
 }
 
 package "Domain Model" as DomainModel {
   class "AutomaticCleaning" as AutomaticCleaning {
     -movementStatus: MovementStatus
+    -travelDirection: TravelDirection
     -policy: CleaningPolicy
-    -dustResponse: DustResponse
-    -dustResponsePending: boolean
-    +handleSensorState(sensorState: SensorState): CommandResult
-    +selectAvoidanceDirection(sensorState: SensorState): AvoidanceDecision
-    +selectAvoidanceDirectionByPolicy(): AvoidanceDecision
-    +resumeAfterTurn(sensorState: SensorState): CommandResult
-    +handleThreeSideObstacle(sensorState: SensorState): CommandResult
-    +handleDustDetected(sensorState: SensorState): CommandResult
-    +handleObstacleWhileDustResponse(sensorState: SensorState): CommandResult
-    +handleDustResponseTimeout(): CommandResult
-    +markDustResponsePending()
-    +clearDustResponseState()
-    +isDustResponseActive(): boolean
-    +isDustResponsePending(): boolean
-    +keepCurrentMovementStatus()
-    +changeMovementStatus(status: MovementStatus)
-    +keepMovementStatus(status: MovementStatus)
+    -rotationContext: RotationContext
+    +handleSensorSnapshot(sensorState: SensorState): CommandResult
+    +decideNextAction(sensorState: SensorState): CleaningDecision
+    +startDustResponse(sensorState: SensorState): CommandResult
+    +startObstacleResponse(sensorState: SensorState): CommandResult
+    +handleRotationSensorCheck(sensorState: SensorState): CommandResult
+    +completeRotationIfTargetClear(sensorState: SensorState): CommandResult
+    +travelDirection(): TravelDirection
+    +movementStatus(): MovementStatus
+    +isRotationActive(): boolean
   }
 
   class "SensorState" as SensorState {
     -frontObstacleDetected: boolean
-    -backObstacleDetected: boolean
-    -leftObstacleDetected: boolean
-    -rightObstacleDetected: boolean
+    -backObstacleDetected: BackObstacleInput
     -dustDetected: boolean
+    +updateSnapshot(frontObstacleDetected: boolean, backObstacleDetected: BackObstacleInput, dustDetected: boolean)
     +updateFrontObstacle(frontObstacleDetected: boolean)
-    +updateBackObstacle(backObstacleDetected: boolean)
-    +updateSideObstacles(leftObstacleDetected: boolean, rightObstacleDetected: boolean)
-    +updateObstacles(frontObstacleDetected: boolean, leftObstacleDetected: boolean, rightObstacleDetected: boolean)
-    +updateObstacles(frontObstacleDetected: boolean, backObstacleDetected: boolean, leftObstacleDetected: boolean, rightObstacleDetected: boolean)
+    +updateBackObstacle(backObstacleDetected: BackObstacleInput)
     +updateDustDetected(dustDetected: boolean)
-    +isFrontObstacleDetected(): boolean
-    +isBackObstacleDetected(): boolean
-    +isBackObstacleStateKnown(): boolean
     +isDustDetected(): boolean
-    +isThreeSideBlocked(): boolean
-    +canMoveBackward(): boolean
-    +sideObstacleState(): SideObstacleState
+    +obstacleDetectedIn(direction: TravelDirection): boolean
+    +frontObstacleDetected(): boolean
+    +backObstacleDetected(): BackObstacleInput
+  }
+
+  class "RotationContext" as RotationContext {
+    -active: boolean
+    -cause: RotationCause
+    -rotationDirection: RotationDirection
+    -targetSensor: TargetSensor
+    -nextDirection: TravelDirection
+    +start(cause: RotationCause, currentDirection: TravelDirection)
+    +isActive(): boolean
+    +cause(): RotationCause
+    +rotationDirection(): RotationDirection
+    +targetSensor(): TargetSensor
+    +nextDirection(): TravelDirection
+    +complete()
+    +clear()
   }
 
   class "CleaningPolicy" as CleaningPolicy {
-    -avoidanceDirectionPolicy: AvoidanceDirectionPolicy
-    -increasedPowerLevel: CleaningPowerLevel
-    -increasedPowerDuration: Duration
+    -normalPowerLevel: CleaningPowerLevel
+    -boostPowerLevel: CleaningPowerLevel
+    -rotationStepDegrees: int
+    -initialTravelDirection: TravelDirection
     +normalPowerLevel(): CleaningPowerLevel
-    +increasedPowerLevel(): CleaningPowerLevel
-    +increasedPowerDuration(): Duration
-    +avoidanceDirectionPolicy(): AvoidanceDirectionPolicy
+    +boostPowerLevel(): CleaningPowerLevel
+    +rotationStepDegrees(): int
+    +initialTravelDirection(): TravelDirection
   }
 
-  class "AvoidanceDecision" as AvoidanceDecision {
-    -selectedDirection: AvoidanceDirection
-    -backwardRequired: boolean
-    +prepareDirectionDecision()
-    +select(direction: AvoidanceDirection)
-    +selectByPolicy(policy: AvoidanceDirectionPolicy)
-    +evaluateBackwardRequired(sensorState: SensorState)
-    +markBackwardRequired()
-    +markNoAvailableDirection()
-  }
-
-  class "DustResponse" as DustResponse {
-    -active: boolean
-    -powerLevel: CleaningPowerLevel
-    -duration: Duration
-    +start(powerLevel: CleaningPowerLevel, duration: Duration)
-    +expire()
-    +isActive(): boolean
-    +currentPowerLevel(): CleaningPowerLevel
+  class "CleaningDecision" as CleaningDecision {
+    -type: CleaningDecisionType
+    -travelDirection: TravelDirection
+    +normalCleaning(direction: TravelDirection): CleaningDecision
+    +dustResponse(direction: TravelDirection): CleaningDecision
+    +obstacleResponse(direction: TravelDirection): CleaningDecision
   }
 
   class "MovementCommand" as MovementCommand {
     -commandType: MovementCommandType
-    -direction: AvoidanceDirection
     +create(commandType: MovementCommandType): MovementCommand
-    +createTurnCommand(direction: AvoidanceDirection): MovementCommand
   }
 
   class "CleaningCommand" as CleaningCommand {
@@ -271,65 +228,70 @@ package "Domain Model" as DomainModel {
 
   class "CommandResult" as CommandResult {
     -movementCommands: List<MovementCommand>
-    -lastMovementCommand: MovementCommand
     -cleaningCommand: CleaningCommand
-    -timerDuration: Duration
+    +none(): CommandResult
     +withMovement(command: MovementCommand): CommandResult
     +withCleaning(command: CleaningCommand): CommandResult
-    +withTimer(duration: Duration): CommandResult
-  }
-
-  class "SideObstacleState" as SideObstacleState {
-    -leftBlocked: boolean
-    -rightBlocked: boolean
   }
 }
 
 package "Value Types" as ValueTypes {
   enum "MovementStatus" as MovementStatus {
     CLEANING
-    AVOIDING_OBSTACLE
-    BLOCKED
-    STOPPED
+    ROTATING
+  }
+
+  enum "TravelDirection" as TravelDirection {
+    FORWARD
+    BACKWARD
+  }
+
+  enum "RotationDirection" as RotationDirection {
+    CLOCKWISE
+    COUNTER_CLOCKWISE
+  }
+
+  enum "RotationCause" as RotationCause {
+    DUST
+    OBSTACLE
+  }
+
+  enum "TargetSensor" as TargetSensor {
+    FRONT
+    BACK
+  }
+
+  enum "CleaningDecisionType" as CleaningDecisionType {
+    NORMAL_CLEANING
+    DUST_RESPONSE
+    OBSTACLE_RESPONSE
+    ROTATION_RECHECK
   }
 
   enum "MovementCommandType" as MovementCommandType {
     MOVE_FORWARD
     MOVE_BACKWARD
-    TURN_LEFT
-    TURN_RIGHT
-    STOP
+    TURN_CLOCKWISE_90
+    TURN_COUNTER_CLOCKWISE_90
   }
 
   enum "CleaningPowerLevel" as CleaningPowerLevel {
     NORMAL
-    INCREASED
-  }
-
-  enum "AvoidanceDirectionPolicy" as AvoidanceDirectionPolicy {
-    LEFT_FIRST
-    RIGHT_FIRST
-  }
-
-  enum "AvoidanceDirection" as AvoidanceDirection {
-    LEFT
-    RIGHT
+    BOOST
   }
 
   enum "CommandType" as CommandType {
     PING
     RESET
     GET_STATE
+    SET_SENSOR_SNAPSHOT
     SET_FRONT
     SET_BACK
-    SET_SIDE
-    SET_OBSTACLES
     DUST_DETECTED
-    POWER_TIMEOUT
     QUIT
   }
 
-  enum "BackObstacleValue" as BackObstacleValue {
+  enum "BackObstacleInput" as BackObstacleInput {
     CLEAR
     BLOCKED
     UNKNOWN
@@ -341,28 +303,19 @@ package "Value Types" as ValueTypes {
     INVALID_ARGUMENT
   }
 
-  enum "BackObstacleInput" as BackObstacleInput {
-    CLEAR
-    BLOCKED
-    UNKNOWN
-  }
-
   enum "DriveCommand" as DriveCommand {
     NONE
     MOVE_FORWARD
     MOVE_BACKWARD
-    TURN_LEFT
-    TURN_RIGHT
-    STOP
+    TURN_CLOCKWISE_90
+    TURN_COUNTER_CLOCKWISE_90
   }
 
   enum "CleaningPowerState" as CleaningPowerState {
     OFF
     NORMAL
-    INCREASED
+    BOOST
   }
-
-  class "Duration" as Duration <<value object>>
 }
 
 TcpServer ..> CommandHandler : invokes line handler
@@ -378,82 +331,85 @@ CommandParser ..> ParseResult : returns
 ParseResult --> ParsedCommand : optional command
 ParseResult --> ParseError : optional error
 ParsedCommand --> CommandType : has
-ParsedCommand --> BackObstacleValue : uses
+ParsedCommand --> BackObstacleInput : uses
 CommandResponse --> TcpServerResponse : adapted by main
 StateFormatter ..> ControllerStateSnapshot : formats
 
 RobotVacuumApplication *-- RVCSWController
 RobotVacuumApplication *-- RecordingDrivingDevice
 RobotVacuumApplication *-- RecordingCleaningDevice
-RobotVacuumApplication *-- AppTime
 RobotVacuumApplication ..> ControllerStateSnapshot : creates
 RobotVacuumApplication --> BackObstacleInput : accepts
 RecordingDrivingDevice ..|> DrivingDevice
 RecordingCleaningDevice ..|> CleaningDevice
-AppTime ..|> Time
 RecordingDrivingDevice --> DriveCommand : records
 RecordingCleaningDevice --> CleaningPowerState : records
-AppTime --> Duration : records
 ControllerStateSnapshot --> MovementStatus : reports
+ControllerStateSnapshot --> TravelDirection : reports
 ControllerStateSnapshot --> DriveCommand : reports
 ControllerStateSnapshot --> CleaningPowerState : reports
 
 SensorInput ..> RVCSWController : reports input to
-Time ..> RVCSWController : notifies timeout to
 
 RVCSWController *-- SensorState
 RVCSWController *-- AutomaticCleaning
 RVCSWController --> DrivingDevice : sends movement commands
 RVCSWController --> CleaningDevice : sends cleaning commands
-RVCSWController --> Time : starts timer
 
 AutomaticCleaning --> SensorState : reads
 AutomaticCleaning *-- CleaningPolicy
-AutomaticCleaning *-- DustResponse
-AutomaticCleaning ..> AvoidanceDecision : creates/updates
+AutomaticCleaning *-- RotationContext
+AutomaticCleaning ..> CleaningDecision : creates
 AutomaticCleaning ..> MovementCommand : creates
 AutomaticCleaning ..> CleaningCommand : creates
 AutomaticCleaning ..> CommandResult : returns
-
-SensorState --> SideObstacleState : returns
 AutomaticCleaning --> MovementStatus : has
-CleaningPolicy --> AvoidanceDirectionPolicy : uses
+AutomaticCleaning --> TravelDirection : has
+
+SensorState --> BackObstacleInput : stores
+SensorState ..> TravelDirection : evaluates
+RotationContext --> RotationCause : stores
+RotationContext --> RotationDirection : stores
+RotationContext --> TargetSensor : stores
+RotationContext --> TravelDirection : stores
 CleaningPolicy --> CleaningPowerLevel : defines
-CleaningPolicy --> Duration : defines
-AvoidanceDecision --> AvoidanceDirection : selects
-AvoidanceDecision --> SensorState : evaluates
+CleaningPolicy --> TravelDirection : defines
+CleaningDecision --> CleaningDecisionType : has
+CleaningDecision --> TravelDirection : has
 CommandResult --> MovementCommand : ordered movement commands
 CommandResult --> CleaningCommand : optional
-CommandResult --> Duration : optional timer
 MovementCommand --> MovementCommandType : uses
-MovementCommand --> AvoidanceDirection : optional direction
 CleaningCommand --> CleaningPowerLevel : uses
-DustResponse --> CleaningPowerLevel : keeps
-DustResponse --> Duration : keeps
-DrivingDevice ..> AvoidanceDirection : turns by
 
 note right of RVCSWController
-  Receives external events from SensorInput and Time,
-  updates SensorState, asks AutomaticCleaning for command results,
-  and executes device or timer calls.
+  Receives external sensor events, updates SensorState,
+  asks AutomaticCleaning for command results,
+  and executes movement or cleaning device calls.
 end note
 
 note bottom of AutomaticCleaning
   Central use-case coordinator derived from SD-01..SD-07.
-  It owns movement status, obstacle avoidance flow,
-  dust response state, and command creation decisions.
+  It owns travel direction, dust-first decision flow,
+  active rotation context, and command creation.
   It does not call external devices directly.
 end note
 
+note bottom of RotationContext
+  Encapsulates 90-degree rotation state:
+  cause, direction, target sensor, and next travel direction.
+  Forward cases rotate clockwise and target BACK.
+  Backward cases rotate counter-clockwise and target FRONT.
+end note
+
 note bottom of ExternalInterfaces
-  These represent abstract hardware or time inputs.
+  These represent abstract hardware inputs and outputs.
   Detailed hardware control is outside the current scope.
 end note
 
 note bottom of SimulationSupport
   rvc_app support classes adapt TCP commands from the Python simulator
   or system test client into controller inputs, then expose a state snapshot.
-  Map physics, rendering, and coverage assist remain Python-side concerns.
+  Map physics and rendering remain Python-side concerns.
 end note
 
 @enduml

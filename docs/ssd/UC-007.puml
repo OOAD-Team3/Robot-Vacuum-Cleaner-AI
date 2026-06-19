@@ -1,17 +1,37 @@
-@startuml SSD_UC007_Return_To_Normal_Power
+@startuml SSD_UC007_Rotation_Recheck
 hide footbox
-title SSD - UC-007 Return Cleaning Power To Normal
+title SSD - UC-007 90도 단위 회전 중 센서 재확인
 
+actor "센서 입력" as Sensor
 participant "RVC SW Controller" as System
-actor "Cleaning Device" as Cleaner
-actor "Time" as Time
+actor "청소 장치" as Cleaner
+actor "주행 장치" as Drive
 
-Time -> System: increasedPowerDurationExpired()
+Sensor -> System: reportTargetObstacleState(targetObstacleDetected=true)
 activate System
-System -> Cleaner: setCleaningPower(normal)
 
-alt obstacle avoidance is active
-    note right of System: Driving state remains unchanged
+alt 먼지 대응 절차
+    System -> Cleaner: setCleaningPower(BOOST)
+else 장애물 대응 절차
+    System -> Cleaner: setCleaningPower(NORMAL)
 end
+
+loop 대상 센서가 장애물을 감지함
+    alt 회전 방향 = 시계 방향
+        System -> Drive: turnClockwise90()
+    else 회전 방향 = 반시계 방향
+        System -> Drive: turnCounterClockwise90()
+    end
+    Sensor -> System: reportTargetObstacleState(targetObstacleDetected)
+end
+
+alt 대상 센서 미감지 and 다음 진행 방향 = 후진
+    System -> Cleaner: setCleaningPower(NORMAL)
+    System -> Drive: moveBackward()
+else 대상 센서 미감지 and 다음 진행 방향 = 전진
+    System -> Cleaner: setCleaningPower(NORMAL)
+    System -> Drive: moveForward()
+end
+
 deactivate System
 @enduml

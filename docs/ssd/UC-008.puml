@@ -1,46 +1,28 @@
 @startuml SSD_UC008_TCP_Command_Interface
 hide footbox
-title SSD - UC-008 Drive Controller And Query State Through TCP Commands
+title SSD - UC-008 TCP 명령 인터페이스로 컨트롤러 구동 및 상태 조회
 
-actor "Simulator/System Test Client" as Client
-participant "RVC SW Controller System" as System
+actor "시뮬레이터/\n시스템 테스트\n클라이언트" as Client
+participant "rvc_app" as System
 
-Client -> System: connect(host, port)
+Client -> System: connect()
 activate System
 
-loop one newline-terminated command per request
-    alt sensor input command
-        Client -> System: SET_OBSTACLES FRONT=... BACK=... LEFT=... RIGHT=...
-        System --> Client: OK SET_OBSTACLES
-        note right of System: Sensor command may trigger UC-001..UC-005.
-    else dust event command
-        Client -> System: DUST_DETECTED
-        System --> Client: OK DUST_DETECTED
-        note right of System: Continue with UC-006.
-    else time event command
-        Client -> System: POWER_TIMEOUT
-        System --> Client: OK POWER_TIMEOUT
-        note right of System: Continue with UC-007.
-    else state query command
-        Client -> System: GET_STATE
-        System --> Client: OK STATE MOVEMENT=... DRIVE=... CLEANING_POWER=...
-    else reset command
-        Client -> System: RESET
-        System --> Client: OK RESET
-    else invalid command
-        Client -> System: invalid or malformed command
-        System --> Client: ERR UNKNOWN_COMMAND or ERR INVALID_ARGUMENT
-    end
-end
+Client -> System: command line
 
-opt command line exceeds 1024 bytes
-    Client -> System: command line longer than 1024 bytes
+alt command line exceeds 1024 bytes
     System --> Client: ERR INVALID_ARGUMENT
     System -> Client: close session
-end
-
-opt client requests session close
-    Client -> System: QUIT
+else invalid command
+    System --> Client: ERR UNKNOWN_COMMAND or ERR INVALID_ARGUMENT
+else sensor input command
+    System --> Client: OK ...
+    note right of System: UC-001~UC-007 중 해당 자동 청소 흐름 실행
+else GET_STATE
+    System --> Client: OK STATE MOVEMENT=... DIRECTION=... FRONT=... BACK=... DUST=... DRIVE=... CLEANING_POWER=...
+else RESET
+    System --> Client: OK RESET
+else QUIT
     System --> Client: OK BYE
     System -> Client: close session
 end

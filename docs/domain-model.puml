@@ -6,31 +6,33 @@ hide methods
 
 class "Automatic Cleaning" as AutomaticCleaning {
   movementStatus
+  travelDirection
 }
 
 class "Sensor State" as SensorState {
   frontObstacleDetected
   backObstacleDetected
-  leftObstacleDetected
-  rightObstacleDetected
   dustDetected
 }
 
 class "Cleaning Policy" as CleaningPolicy {
-  avoidanceDirectionPolicy
-  increasedPowerLevel
-  increasedPowerDuration
+  normalPowerLevel
+  boostPowerLevel
+  rotationStepDegrees
+  initialTravelDirection
 }
 
-class "Avoidance Decision" as AvoidanceDecision {
-  selectedDirection
-  backwardRequired
+class "Cleaning Decision" as CleaningDecision {
+  decisionType
+  travelDirection
 }
 
-class "Dust Response" as DustResponse {
+class "Rotation Context" as RotationContext {
   active
-  powerLevel
-  duration
+  cause
+  rotationDirection
+  targetSensor
+  nextDirection
 }
 
 class "Movement Command" as MovementCommand {
@@ -43,43 +45,69 @@ class "Cleaning Command" as CleaningCommand {
 
 enum "Movement Status" as MovementStatus {
   CLEANING
-  AVOIDING_OBSTACLE
-  BLOCKED
-  STOPPED
+  ROTATING
+}
+
+enum "Travel Direction" as TravelDirection {
+  FORWARD
+  BACKWARD
+}
+
+enum "Rotation Direction" as RotationDirection {
+  CLOCKWISE
+  COUNTER_CLOCKWISE
+}
+
+enum "Rotation Cause" as RotationCause {
+  DUST
+  OBSTACLE
+}
+
+enum "Target Sensor" as TargetSensor {
+  FRONT
+  BACK
+}
+
+enum "Cleaning Decision Type" as CleaningDecisionType {
+  NORMAL_CLEANING
+  DUST_RESPONSE
+  OBSTACLE_RESPONSE
+  ROTATION_RECHECK
 }
 
 enum "Movement Command Type" as MovementCommandType {
   MOVE_FORWARD
   MOVE_BACKWARD
-  TURN_LEFT
-  TURN_RIGHT
-  STOP
+  TURN_CLOCKWISE_90
+  TURN_COUNTER_CLOCKWISE_90
 }
 
 enum "Cleaning Power Level" as CleaningPowerLevel {
   NORMAL
-  INCREASED
-}
-
-enum "Avoidance Direction Policy" as AvoidanceDirectionPolicy {
-  LEFT_FIRST
-  RIGHT_FIRST
+  BOOST
 }
 
 AutomaticCleaning "1" --> "1" SensorState : reads
 AutomaticCleaning "1" --> "1" CleaningPolicy : uses
+AutomaticCleaning "1" --> "0..1" RotationContext : owns
+AutomaticCleaning "1" --> "0..1" CleaningDecision : creates
 AutomaticCleaning "1" --> "0..*" MovementCommand : issues
 AutomaticCleaning "1" --> "0..*" CleaningCommand : issues
 AutomaticCleaning "1" --> "1" MovementStatus : has
+AutomaticCleaning "1" --> "1" TravelDirection : has
 
-SensorState "1" --> "0..1" AvoidanceDecision : triggers
-SensorState "1" --> "0..1" DustResponse : triggers
+SensorState "1" --> "0..1" CleaningDecision : triggers
 
-CleaningPolicy "1" --> "1" AvoidanceDirectionPolicy : defines
 CleaningPolicy "1" --> "1" CleaningPowerLevel : defines
+CleaningPolicy "1" --> "1" TravelDirection : defines initial direction
 
-AvoidanceDecision "1" --> "1..*" MovementCommand : produces
-DustResponse "1" --> "1..*" CleaningCommand : produces
+CleaningDecision "1" --> "1" CleaningDecisionType : has
+CleaningDecision "1" --> "1" TravelDirection : targets
+
+RotationContext "1" --> "1" RotationCause : caused by
+RotationContext "1" --> "1" RotationDirection : rotates
+RotationContext "1" --> "1" TargetSensor : checks
+RotationContext "1" --> "1" TravelDirection : toggles to
 
 MovementCommand "1" --> "1" MovementCommandType : uses
 CleaningCommand "1" --> "1" CleaningPowerLevel : uses

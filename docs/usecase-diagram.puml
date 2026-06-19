@@ -6,19 +6,18 @@ skinparam shadowing false
 skinparam linetype ortho
 
 actor "센서 입력" as Sensor
-actor "Time" as Time
 actor "주행 장치" as Drive
 actor "청소 장치" as Cleaner
 actor "시뮬레이터/\n시스템 테스트\n클라이언트" as Simulator
 
 rectangle "RVC SW Controller System" as System {
-  usecase "UC-001\n장애물이 없을 때\n직진 청소" as UC001
-  usecase "UC-002\n전방 장애물 감지 후\n정지" as UC002
-  usecase "UC-003\n좌측 또는 우측\n회피 방향 선택" as UC003
-  usecase "UC-004\n방향 전환 후\n청소 재개" as UC004
-  usecase "UC-005\n삼면 장애물 감지 후\n후진" as UC005
-  usecase "UC-006\n먼지 감지 이벤트 처리" as UC006
-  usecase "UC-007\n청소 출력 일반 상태\n복귀" as UC007
+  usecase "UC-001\n전원 ON 중\n일반 모드 청소 유지" as UC001
+  usecase "UC-002\n먼지 우선\n센서 판단" as UC002
+  usecase "UC-003\n전진 중 먼지 감지 후\n후진 전환" as UC003
+  usecase "UC-004\n후진 중 먼지 감지 후\n전진 전환" as UC004
+  usecase "UC-005\n전진 중 장애물 감지 후\n후진 전환" as UC005
+  usecase "UC-006\n후진 중 장애물 감지 후\n전진 전환" as UC006
+  usecase "UC-007\n90도 단위 회전 중\n센서 재확인" as UC007
   usecase "UC-008\nTCP 명령 인터페이스로\n컨트롤러 구동 및\n상태 조회" as UC008
 
   UC001 -[hidden]d-> UC002
@@ -30,7 +29,7 @@ rectangle "RVC SW Controller System" as System {
   UC007 -[hidden]d-> UC008
 }
 
-Sensor -[hidden]d-> Time
+Sensor -[hidden]d-> Drive
 Drive -[hidden]d-> Cleaner
 Cleaner -[hidden]d-> Simulator
 
@@ -40,23 +39,27 @@ Sensor -l-> UC003
 Sensor -l-> UC004
 Sensor -l-> UC005
 Sensor -l-> UC006
-Time -l-> UC007
+Sensor -l-> UC007
 Simulator -r-> UC008
 
 UC001 -l-> Drive
-UC002 -l-> Drive
 UC003 -l-> Drive
 UC004 -l-> Drive
 UC005 -l-> Drive
+UC006 -l-> Drive
+UC007 -l-> Drive
 
 UC001 -l-> Cleaner
+UC003 -l-> Cleaner
 UC004 -l-> Cleaner
+UC005 -l-> Cleaner
 UC006 -l-> Cleaner
 UC007 -l-> Cleaner
 
 UC008 ..> UC001 : triggers/observes
 UC008 ..> UC002 : triggers/observes
 UC008 ..> UC003 : triggers/observes
+UC008 ..> UC004 : triggers/observes
 UC008 ..> UC005 : triggers/observes
 UC008 ..> UC006 : triggers/observes
 UC008 ..> UC007 : triggers/observes

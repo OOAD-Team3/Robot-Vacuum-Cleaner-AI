@@ -1,19 +1,26 @@
-@startuml SSD_UC006_Handle_Dust_Detected
+@startuml SSD_UC006_Backward_Obstacle_To_Forward
 hide footbox
-title SSD - UC-006 Handle Dust Detection Event
+title SSD - UC-006 후진 중 장애물 감지 후 전진 전환
 
-actor "Sensor Input" as Sensor
+actor "센서 입력" as Sensor
 participant "RVC SW Controller" as System
-actor "Cleaning Device" as Cleaner
+actor "청소 장치" as Cleaner
+actor "주행 장치" as Drive
 
-Sensor -> System: reportDustDetected()
+Sensor -> System: reportSensorSnapshot(dustDetected=false, currentDirection=BACKWARD, backObstacleDetected=true)
 activate System
-System -> Cleaner: setCleaningPower(increased)
+System -> Cleaner: setCleaningPower(NORMAL)
+System -> Drive: turnCounterClockwise90()
 
-alt obstacle detected during dust response
-    Sensor -> System: reportFrontObstacleState(frontObstacleDetected=true)
-    note right of System: Driving follows UC-002 or UC-005
-    System -> Cleaner: keepCleaningPower(increased)
+Sensor -> System: reportFrontObstacleState(frontObstacleDetected)
+
+loop 전방 장애물 감지
+    System -> Drive: turnCounterClockwise90()
+    Sensor -> System: reportFrontObstacleState(frontObstacleDetected)
 end
+
+System -> Drive: moveForward()
+note right of System: 진행 방향 = 전진
+
 deactivate System
 @enduml

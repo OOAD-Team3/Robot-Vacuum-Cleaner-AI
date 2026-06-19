@@ -31,27 +31,13 @@ else command line accepted
 
     alt parse failure
         Handler --> TcpServer: CommandResponse(ERR UNKNOWN_COMMAND or ERR INVALID_ARGUMENT)
-    else sensor command
-        Handler -> App: setObstacleState(...) or setFront/Back/Side(...)
+    else sensor input command
+        Handler -> App: applySensorInput(front, back, dust)
         activate App
-        App -> Controller: reportObstacleState(...) or reportFront/Back/Side(...)
+        App -> Controller: reportSensorSnapshot(front, back, dust)
         Controller --> App: device commands recorded
         deactivate App
         Handler --> TcpServer: CommandResponse(OK ...)
-    else dust command
-        Handler -> App: reportDustDetected()
-        activate App
-        App -> Controller: reportDustDetected()
-        Controller --> App: cleaning command and timer recorded
-        deactivate App
-        Handler --> TcpServer: CommandResponse(OK DUST_DETECTED)
-    else power timeout command
-        Handler -> App: expirePowerTimer()
-        activate App
-        App -> Controller: increasedPowerDurationExpired()
-        Controller --> App: cleaning command recorded
-        deactivate App
-        Handler --> TcpServer: CommandResponse(OK POWER_TIMEOUT or ERR INVALID_STATE)
     else state query
         Handler -> App: snapshot()
         App --> Handler: ControllerStateSnapshot

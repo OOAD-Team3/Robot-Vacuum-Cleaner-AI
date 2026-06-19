@@ -1,22 +1,27 @@
-@startuml SSD_UC003_Select_Avoidance_Direction
+@startuml SSD_UC003_Forward_Dust_To_Backward
 hide footbox
-title SSD - UC-003 Select Left or Right Avoidance Direction
+title SSD - UC-003 전진 중 먼지 감지 후 후진 전환
 
-actor "Sensor Input" as Sensor
+actor "센서 입력" as Sensor
 participant "RVC SW Controller" as System
-actor "Driving Device" as Drive
+actor "청소 장치" as Cleaner
+actor "주행 장치" as Drive
 
-Sensor -> System: reportSideObstacleState(leftObstacleDetected, rightObstacleDetected)
+Sensor -> System: reportSensorSnapshot(dustDetected=true, currentDirection=FORWARD)
 activate System
+System -> Cleaner: setCleaningPower(BOOST)
+System -> Drive: turnClockwise90()
 
-alt left blocked and right open
-    System -> Drive: turnRight()
-else right blocked and left open
-    System -> Drive: turnLeft()
-else left and right open
-    System -> Drive: turn(selectedDirection)
-else left and right blocked
-    note right of System: Continue with UC-005
+Sensor -> System: reportBackObstacleState(backObstacleDetected)
+
+loop 후방 장애물 감지
+    System -> Drive: turnClockwise90()
+    Sensor -> System: reportBackObstacleState(backObstacleDetected)
 end
+
+System -> Cleaner: setCleaningPower(NORMAL)
+System -> Drive: moveBackward()
+note right of System: 진행 방향 = 후진
+
 deactivate System
 @enduml

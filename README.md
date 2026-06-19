@@ -95,16 +95,16 @@ Robot Vacuum Cleaner(RVC) SW Controller의 요구사항과 설계 문서, 코드
 
 ### Current Use Case Map
 
-| Use Case | Summary                       | SSD                    | Internal SD          |
-| -------- | ----------------------------- | ---------------------- | -------------------- |
-| UC-001   | 장애물이 없을 때 직진 청소    | `docs/ssd/UC-001.puml` | `docs/sd/SD-01.puml` |
-| UC-002   | 전방 장애물 감지 후 정지      | `docs/ssd/UC-002.puml` | `docs/sd/SD-02.puml` |
-| UC-003   | 좌측 또는 우측 회피 방향 선택 | `docs/ssd/UC-003.puml` | `docs/sd/SD-03.puml` |
-| UC-004   | 방향 전환 후 청소 재개        | `docs/ssd/UC-004.puml` | `docs/sd/SD-04.puml` |
-| UC-005   | 삼면 장애물 감지 후 후진      | `docs/ssd/UC-005.puml` | `docs/sd/SD-05.puml` |
-| UC-006   | 먼지 감지 이벤트 처리         | `docs/ssd/UC-006.puml` | `docs/sd/SD-06.puml` |
-| UC-007   | 청소 출력 일반 상태 복귀      | `docs/ssd/UC-007.puml` | `docs/sd/SD-07.puml` |
-| UC-008   | TCP 명령으로 구동 및 상태 조회 | `docs/ssd/UC-008.puml` | `docs/sd/SD-08.puml` |
+| Use Case | Summary                         | SSD                    | Internal SD          |
+| -------- | ------------------------------- | ---------------------- | -------------------- |
+| UC-001   | 전원 ON 중 일반 모드 청소 유지  | `docs/ssd/UC-001.puml` | `docs/sd/SD-01.puml` |
+| UC-002   | 먼지 우선 센서 판단             | `docs/ssd/UC-002.puml` | `docs/sd/SD-02.puml` |
+| UC-003   | 전진 중 먼지 감지 후 후진 전환  | `docs/ssd/UC-003.puml` | `docs/sd/SD-03.puml` |
+| UC-004   | 후진 중 먼지 감지 후 전진 전환  | `docs/ssd/UC-004.puml` | `docs/sd/SD-04.puml` |
+| UC-005   | 전진 중 장애물 감지 후 후진 전환 | `docs/ssd/UC-005.puml` | `docs/sd/SD-05.puml` |
+| UC-006   | 후진 중 장애물 감지 후 전진 전환 | `docs/ssd/UC-006.puml` | `docs/sd/SD-06.puml` |
+| UC-007   | 90도 단위 회전 중 센서 재확인   | `docs/ssd/UC-007.puml` | `docs/sd/SD-07.puml` |
+| UC-008   | TCP 명령으로 구동 및 상태 조회  | `docs/ssd/UC-008.puml` | `docs/sd/SD-08.puml` |
 
 ### Implementation
 
@@ -174,19 +174,18 @@ Example:
 ```text
 PING
 GET_STATE
-SET_OBSTACLES FRONT=1 BACK=0 LEFT=1
-DUST_DETECTED
-POWER_TIMEOUT
+SET_SENSOR_SNAPSHOT FRONT=1 BACK=0 DUST=1
+SET_SENSOR_SNAPSHOT FRONT=0 BACK=0 DUST=0
 QUIT
 ```
 
 ### Pygame Simulator
 
-The simulator is a Python TCP client. In map mode, Python owns the room grid, dust positions, robot coordinates, robot direction, sensor calculation, and rendering. C++ still owns the controller decision logic: Python sends `SET_OBSTACLES`, reads `GET_STATE`, and applies the returned `DRIVE` value to the local world.
+The simulator is a Python TCP client. In map mode, Python owns the room grid, dust positions, robot coordinates, robot direction, sensor calculation, and rendering. C++ still owns the controller decision logic: Python sends `SET_SENSOR_SNAPSHOT`, reads `GET_STATE`, and applies the returned `DRIVE`, `DIRECTION`, `ROTATION_ACTIVE`, and `CLEANING_POWER` values to the local world.
 
 Map mode enables a Python-side coverage assist by default so the robot does not only follow the outer wall or orbit a local obstacle while reachable uncleaned cells remain elsewhere. The assist is implemented by sensor calculation only; the C++ command protocol and domain model are unchanged.
 
-When the C++ state reports `TIMER_ACTIVE=1` after dust detection, the simulator automatically sends `POWER_TIMEOUT` after about five seconds so cleaning power returns from `INCREASED` to `NORMAL`. Use `--dust-timeout` if the controller policy duration changes.
+Dust handling is controller-driven: when dust is reported in a sensor snapshot, C++ decides whether to enter Boost mode, rotate in 90-degree steps, and return to Normal mode after the target direction sensor is clear.
 
 When every floor cell reachable from the initial robot position has been cleaned, the simulator stops play mode automatically.
 

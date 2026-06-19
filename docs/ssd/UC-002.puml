@@ -1,21 +1,30 @@
-@startuml SSD_UC002_Stop_On_Front_Obstacle
+@startuml SSD_UC002_Dust_First_Decision
 hide footbox
-title SSD - UC-002 Stop After Front Obstacle Detection
+title SSD - UC-002 먼지 우선 센서 판단
 
-actor "Sensor Input" as Sensor
+actor "센서 입력" as Sensor
 participant "RVC SW Controller" as System
-actor "Driving Device" as Drive
 
-Sensor -> System: reportFrontObstacleState(frontObstacleDetected=true)
+Sensor -> System: reportSensorSnapshot(dustDetected, frontObstacleDetected, backObstacleDetected)
 activate System
-System -> Drive: stop()
 
-alt front, left, and right obstacles detected
-    Sensor -> System: reportObstacleState(frontObstacleDetected=true, backObstacleDetected, leftObstacleDetected=true, rightObstacleDetected=true)
-    note right of System: Continue with UC-005
-else dust detected while stopped
-    Sensor -> System: reportDustDetected()
-    note right of System: Obstacle avoidance remains priority
+alt dustDetected = true
+    note right of System: 장애물 감지 여부와 관계없이 먼지 대응 우선
+    alt 현재 진행 방향 = 전진
+        note right of System: Continue with UC-003
+    else 현재 진행 방향 = 후진
+        note right of System: Continue with UC-004
+    end
+else currentDirectionObstacle = true
+    note right of System: 먼지가 없을 때만 장애물 대응
+    alt 현재 진행 방향 = 전진
+        note right of System: Continue with UC-005
+    else 현재 진행 방향 = 후진
+        note right of System: Continue with UC-006
+    end
+else no dust and no obstacle
+    note right of System: Continue with UC-001
 end
+
 deactivate System
 @enduml

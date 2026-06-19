@@ -1,48 +1,46 @@
-' SD-02. UC-002 전방 장애물 감지 후 정지
-' Related Use Case: UC-002. 전방 장애물 감지 후 정지
-' Intent: 전방 장애물 감지 시 정지 명령을 생성하고 회피 방향 판단으로 넘기는 흐름을 표현한다.
-' Note: 삼면 장애물은 UC-005로, 정지 중 먼지 감지는 UC-006 출력 처리로 이어진다.
+' SD-02. UC-002 먼지 우선 센서 판단
+' Related Use Case: UC-002. 먼지 우선 센서 판단
+' Intent: 먼지 감지를 장애물 감지보다 우선하는 판단 흐름을 표현한다.
 
-@startuml SD_02_UC002_Stop_On_Front_Obstacle
+@startuml SD_02_UC002_Dust_First_Decision
 hide footbox
-title SD-02 - UC-002 전방 장애물 감지 후 정지
+title SD-02 - UC-002 먼지 우선 센서 판단
 
 actor "센서 입력" as Sensor
 participant "RVC SW Controller" as Controller
 participant "SensorState" as SensorState
 participant "AutomaticCleaning" as Cleaning
-participant "MovementCommand" as MovementCommand
-participant "AvoidanceDecision" as AvoidanceDecision
-actor "주행 장치" as Drive
+participant "CleaningDecision" as Decision
 
-Sensor -> Controller: reportFrontObstacleState(frontObstacleDetected=true)
+Sensor -> Controller: reportSensorSnapshot(dustDetected, frontObstacleDetected, backObstacleDetected)
 activate Controller
-Controller -> SensorState: updateFrontObstacle(frontObstacleDetected=true)
-Controller -> Cleaning: handleSensorState(SensorState)
+Controller -> SensorState: updateSnapshot(frontObstacleDetected, backObstacleDetected, dustDetected)
+Controller -> Cleaning: decideNextAction(SensorState)
 activate Cleaning
-Cleaning -> SensorState: isFrontObstacleDetected()
-SensorState --> Cleaning: true
-Cleaning -> Cleaning: changeMovementStatus(AVOIDING_OBSTACLE)
-Cleaning -> MovementCommand: create(STOP)
-MovementCommand --> Cleaning: stopCommand
-Cleaning -> AvoidanceDecision: prepareDirectionDecision()
-AvoidanceDecision --> Cleaning: directionDecisionRequired
-Cleaning --> Controller: commandResult(stopCommand)
-deactivate Cleaning
 
-Controller -> Drive: stop()
-
-alt 전방, 좌측, 우측 장애물이 모두 감지됨
-    Sensor -> Controller: reportObstacleState(frontObstacleDetected=true, backObstacleDetected, leftObstacleDetected=true, rightObstacleDetected=true)
-    Controller -> SensorState: updateObstacles(frontObstacleDetected=true, backObstacleDetected, leftObstacleDetected=true, rightObstacleDetected=true)
-    Controller -> Cleaning: handleThreeSideObstacle(SensorState)
-    note right of Cleaning: UC-005로 전환
-else 정지 중 먼지 감지
-    Sensor -> Controller: reportDustDetected()
-    Controller -> SensorState: updateDustDetected(dustDetected=true)
-    Controller -> Cleaning: markDustResponsePending()
-    note right of Cleaning: 주행 회피 판단을 우선하고 청소 출력은 UC-006에 따라 처리
+Cleaning -> SensorState: isDustDetected()
+alt dustDetected = true
+    SensorState --> Cleaning: true
+    Cleaning -> Decision: dustResponse(currentDirection)
+    Decision --> Cleaning: DUST_RESPONSE
+    note right of Cleaning: 장애물 감지 여부와 관계없이 UC-003 또는 UC-004 선택
+else dustDetected = false
+    SensorState --> Cleaning: false
+    Cleaning -> SensorState: obstacleDetectedIn(currentDirection)
+    alt currentDirectionObstacle = true
+        SensorState --> Cleaning: true
+        Cleaning -> Decision: obstacleResponse(currentDirection)
+        Decision --> Cleaning: OBSTACLE_RESPONSE
+        note right of Cleaning: UC-005 또는 UC-006 선택
+    else currentDirectionObstacle = false
+        SensorState --> Cleaning: false
+        Cleaning -> Decision: normalCleaning(currentDirection)
+        Decision --> Cleaning: NORMAL_CLEANING
+        note right of Cleaning: UC-001 유지
+    end
 end
 
+Cleaning --> Controller: decision
+deactivate Cleaning
 deactivate Controller
 @enduml

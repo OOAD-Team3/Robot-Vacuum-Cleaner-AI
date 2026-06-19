@@ -1,53 +1,52 @@
-' SD-06. UC-006 먼지 감지 이벤트 처리
-' Related Use Case: UC-006. 먼지 감지 이벤트 처리
-' Intent: 먼지 감지 시 증가 출력 수준과 유지 시간을 정책에서 조회하고 먼지 대응 상태를 시작하는 흐름을 표현한다.
-' Note: 장애물 회피가 동시에 발생해도 주행 상태와 먼지 대응 상태는 별도로 유지한다.
+' SD-06. UC-006 후진 중 장애물 감지 후 전진 전환
+' Related Use Case: UC-006. 후진 중 장애물 감지 후 전진 전환
+' Intent: 후진 중 먼지가 없고 후방 장애물이 감지될 때 일반 모드로 반시계 방향 90도 회전을 시작하고 전방이 열리면 전진으로 전환하는 흐름을 표현한다.
 
-@startuml SD_06_UC006_Handle_Dust_Detected
+@startuml SD_06_UC006_Backward_Obstacle_To_Forward
 hide footbox
-title SD-06 - UC-006 먼지 감지 이벤트 처리
+title SD-06 - UC-006 후진 중 장애물 감지 후 전진 전환
 
 actor "센서 입력" as Sensor
 participant "RVC SW Controller" as Controller
 participant "SensorState" as SensorState
 participant "AutomaticCleaning" as Cleaning
-participant "CleaningPolicy" as Policy
-participant "DustResponse" as DustResponse
+participant "RotationContext" as RotationContext
+participant "CommandResult" as CommandResult
 participant "CleaningCommand" as CleaningCommand
+participant "MovementCommand" as MovementCommand
 actor "청소 장치" as Cleaner
-actor "Time" as Time
+actor "주행 장치" as Drive
 
-Sensor -> Controller: reportDustDetected()
+Sensor -> Controller: reportSensorSnapshot(dustDetected=false, currentDirection=BACKWARD, backObstacleDetected=true)
 activate Controller
-Controller -> SensorState: updateDustDetected(dustDetected=true)
-Controller -> Cleaning: handleDustDetected(SensorState)
+Controller -> SensorState: updateSnapshot(frontObstacleDetected, backObstacleDetected=true, dustDetected=false)
+Controller -> Cleaning: startObstacleResponse(SensorState)
 activate Cleaning
-Cleaning -> SensorState: isDustDetected()
-SensorState --> Cleaning: true
-Cleaning -> Policy: increasedPowerLevel()
-Policy --> Cleaning: INCREASED
-Cleaning -> Policy: increasedPowerDuration()
-Policy --> Cleaning: duration
-Cleaning -> DustResponse: start(INCREASED, duration)
-DustResponse --> Cleaning: active=true
-Cleaning -> CleaningCommand: create(INCREASED)
-CleaningCommand --> Cleaning: increasedPowerCommand
-Cleaning --> Controller: commandResult(increasedPowerCommand, timerDuration=duration)
+Cleaning -> SensorState: currentDirection()
+SensorState --> Cleaning: BACKWARD
+Cleaning -> RotationContext: start(cause=OBSTACLE, rotation=COUNTER_CLOCKWISE, targetSensor=FRONT, nextDirection=FORWARD)
+RotationContext --> Cleaning: activeContext
+Cleaning -> CleaningCommand: create(NORMAL)
+Cleaning -> MovementCommand: create(TURN_COUNTER_CLOCKWISE_90)
+Cleaning -> CommandResult: withCleaning(normalCommand)
+Cleaning -> CommandResult: withMovement(turnCommand)
+Cleaning --> Controller: commandResult
 deactivate Cleaning
 
-Controller -> Cleaner: setCleaningPower(INCREASED)
-Controller -> Time: startTimer(duration)
+Controller -> Cleaner: setCleaningPower(NORMAL)
+Controller -> Drive: turnCounterClockwise90()
 
-alt 먼지 대응 중 장애물 감지
-    Sensor -> Controller: reportFrontObstacleState(frontObstacleDetected=true)
-    Controller -> SensorState: updateFrontObstacle(frontObstacleDetected=true)
-    Controller -> Cleaning: handleObstacleWhileDustResponse(SensorState)
-    Cleaning -> DustResponse: isActive()
-    DustResponse --> Cleaning: true
-    Cleaning --> Controller: keepPower(INCREASED)
-    Controller -> Cleaner: keepCleaningPower(INCREASED)
-    note right of Cleaning: 주행 상태는 UC-002 또는 UC-005를 따름
-end
+Sensor -> Controller: reportFrontObstacleState(frontObstacleDetected=false)
+Controller -> SensorState: updateFrontObstacle(false)
+Controller -> Cleaning: completeRotationIfTargetClear(SensorState)
+activate Cleaning
+Cleaning -> SensorState: obstacleDetectedIn(FORWARD)
+SensorState --> Cleaning: false
+Cleaning -> RotationContext: complete()
+Cleaning -> MovementCommand: create(MOVE_FORWARD)
+Cleaning --> Controller: commandResult(moveForwardCommand)
+deactivate Cleaning
 
+Controller -> Drive: moveForward()
 deactivate Controller
 @enduml
